@@ -3,7 +3,7 @@ import threading
 from .hardware.flow_sensor import FlowSensor
 from .hardware.solenoid import Solenoid
 import RPi.GPIO as GPIO
-from .database.influx_client import InfluxLogger
+from .database.victoria_logger import VictoriaMetricsLogger
 from .control.manager import ControlManager
 from .utils import config
 from .hardware.turbidity_meter import TurbiditySensor
@@ -15,7 +15,7 @@ def start():
     valve_main = Solenoid(config.SOLENOID_1_PIN)
     valve_aux  = Solenoid(config.SOLENOID_2_PIN)
     meter      = FlowSensor(port='/dev/ttyUSB0', slave_id=1)
-    logger     = InfluxLogger()
+    logger     = VictoriaMetricsLogger()
     brain      = ControlManager()
     turbidity_sensor = TurbiditySensor()
 

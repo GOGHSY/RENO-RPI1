@@ -12,3 +12,6 @@ INFLUX_BUCKET = "IOT"
 
 # Logic Thresholds
 FLOW_THRESHOLD = 15.0  # L/min
+
+#victoriametrics
+VM_URL = "http://192.168.10.3:8428"

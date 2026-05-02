@@ -1,0 +1,83 @@
+import requests
+from datetime import datetime
+from ..utils import config
+
+
+class VictoriaMetricsLogger:
+    def __init__(self):
+        self.url = f"{config.VM_URL}/api/v1/write"
+
+    def _send(self, line: str):
+        try:
+            r = requests.post(self.url, data=line, timeout=2)
+            r.raise_for_status()
+        except Exception as e:
+            print(f"[VictoriaMetrics] write failed: {e}")
+
+    # -------------------------
+    # 1. FIXED STRUCTURE LOGGER
+    # -------------------------
+    def log(self, flow, v1_state, v2_state, turbidity, status):
+        """Logs filtration system data"""
+
+        line = (
+            f"filtration,"
+            f"status={status} "
+            f"flow_rate={float(flow)},"
+            f"valve_1_active={1 if v1_state == 'OPEN' else 0},"
+            f"valve_2_active={1 if v2_state == 'OPEN' else 0},"
+            f"turbidity={float(turbidity)} "
+        )
+
+        self._send(line)
+
+    # -------------------------
+    # 2. DYNAMIC SENSOR LOGGER
+    # -------------------------
+    def log_treatment(self, data):
+        """
+        Logs all sensor data dynamically into VictoriaMetrics
+        """
+
+        measurement = "water_treatment"
+
+        tags = []
+        fields = []
+
+        # handle tags separately
+        if "pump1_state" in data:
+            tags.append(f"pump1_state={data['pump1_state']}")
+
+        # build fields
+        for key, value in data.items():
+            if key in {"timestamp", "pump1_state"}:
+                continue
+
+            try:
+                fields.append(f"{key}={float(value)}")
+            except (ValueError, TypeError):
+                fields.append(f'{key}="{value}"')
+
+        # timestamp (optional)
+        ts = ""
+        if "timestamp" in data:
+            try:
+                dt = datetime.strptime(data["timestamp"], "%Y-%m-%d %H:%M:%S.%f")
+                ts = int(dt.timestamp() * 1000)
+            except Exception:
+                pass
+
+        # assemble line protocol
+        line = measurement
+
+        if tags:
+            line += "," + ",".join(tags)
+
+        line += " " + ",".join(fields)
+
+        if ts:
+            line += f" {ts}"
+
+        self._send(line)
+
+        print(f"✓ Logged {len(data)} fields to VictoriaMetrics")
