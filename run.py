@@ -79,7 +79,37 @@ if __name__ == "__main__":
 
         ui_thread = threading.Thread(target=run_ui, daemon=True)
         ui_thread.start()
-        print("Web UI      → http://0.0.0.0:8000")
+        print("Web UI (local)  → http://0.0.0.0:8000")
+
+        # ── Tailscale Funnel (public HTTPS access) ────────────────────────
+        # Exposes the dashboard at https://<hostname>.tailc61b41.ts.net
+        # Requires Funnel to be enabled in your Tailscale admin ACL policy:
+        #   https://login.tailscale.com/admin/acls
+        # Add:  "nodeAttrs": [{"target":["autogroup:self"],"attr":["funnel"]}]
+        try:
+            r = subprocess.run(
+                ["tailscale", "funnel", "--bg", "8000"],
+                capture_output=True, text=True, timeout=10,
+            )
+            if r.returncode == 0:
+                # Get the public URL from `tailscale funnel status`
+                st = subprocess.run(
+                    ["tailscale", "funnel", "status"],
+                    capture_output=True, text=True, timeout=5,
+                )
+                url_line = next(
+                    (l for l in st.stdout.splitlines() if "https://" in l), None
+                )
+                public_url = url_line.strip().split()[0] if url_line else "https://<hostname>.tailc61b41.ts.net"
+                print(f"Web UI (public) → {public_url}")
+            else:
+                print(f"Tailscale Funnel not started: {r.stderr.strip()[:120]}")
+                print("  → See run.py comment to enable Funnel in Tailscale admin.")
+        except FileNotFoundError:
+            print("tailscale not found — public URL not available")
+        except Exception as e:
+            print(f"Tailscale Funnel error: {e}")
+        # ─────────────────────────────────────────────────────────────────
 
         start()  # blocks (sensor loop)
 
