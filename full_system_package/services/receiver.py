@@ -36,12 +36,12 @@ def listener(sample):
 
 def start_receiver():
     print("Connecting to Zenoh...")
-
-    z = zenoh.open({"connect": [ZENOH_ROUTER]})
-
+    conf = zenoh.Config()
+    conf.insert_json5("connect/endpoints", f'["{ZENOH_ROUTER}"]')
+    z = zenoh.open(conf)
     print(f"Subscribed to {ZENOH_KEY}")
-
-    z.declare_subscriber(ZENOH_KEY, listener)
-
+    sub = z.declare_subscriber(ZENOH_KEY, listener)
     print("Listening for water treatment data...")
     input("Press Enter to exit...\n")
+    sub.undeclare()
+    z.close()

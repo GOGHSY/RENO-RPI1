@@ -1,4 +1,4 @@
- #Hardware Pins (BCM)
+# Hardware Pins (BCM)
 
 FLOW_SENSOR_PIN = 21
 SOLENOID_1_PIN = 18  # Main Valve
@@ -13,5 +13,5 @@ INFLUX_BUCKET = "IOT"
 # Logic Thresholds
 FLOW_THRESHOLD = 15.0  # L/min
 
-#victoriametrics
-VM_URL = "http://192.168.10.3:8428"
+# victoriametrics
+VM_URL = "http://127.0.0.1:8428"

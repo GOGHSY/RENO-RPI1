@@ -3,116 +3,134 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>AquaControl Pro — Data Management</title>
+        <title>SEM 129 Dashboard</title>
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <style>
             :root {
-                --bg-main: #f8fafc;
-                --card-bg: #ffffff;
-                --text-main: #1e293b;
-                --text-muted: #64748b;
+                --bg: #f8fafc;
+                --card: #ffffff;
+                --text: #1e293b;
+                --muted: #64748b;
                 --accent: #2563eb;
                 --border: #e2e8f0;
+                --success: #10b981;
+                --danger: #ef4444;
             }
-
             * {
                 margin: 0;
                 padding: 0;
                 box-sizing: border-box;
             }
             body {
-                background-color: var(--bg-main);
-                color: var(--text-main);
-                font-family:
-                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-                    sans-serif;
+                background: var(--bg);
+                color: var(--text);
+                font-family: sans-serif;
             }
-
             .container {
-                max-width: 1200px;
+                max-width: 1400px;
                 margin: 0 auto;
-                padding: 2rem;
+                padding: 1.5rem;
             }
-
             header {
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                padding-bottom: 2rem;
+                margin-bottom: 1.5rem;
                 border-bottom: 1px solid var(--border);
-                margin-bottom: 2rem;
+                padding-bottom: 1rem;
             }
-
-            /* Navigation & Action Buttons */
-            .nav-group {
-                display: flex;
-                gap: 0.75rem;
-            }
-            .btn {
-                padding: 0.6rem 1rem;
-                border-radius: 6px;
-                border: 1px solid var(--border);
-                font-weight: 600;
-                cursor: pointer;
-                font-size: 0.85rem;
-                transition: all 0.2s;
+            .nav-controls {
                 display: flex;
                 align-items: center;
-                gap: 0.5rem;
-            }
-            .btn-primary {
-                background: var(--accent);
-                color: white;
-                border: none;
-            }
-            .btn-outline {
-                background: white;
-                color: var(--text-main);
-            }
-            .btn:hover {
-                opacity: 0.9;
-                transform: translateY(-1px);
-            }
-
-            /* Dashboard Grid */
-            .dashboard-grid {
-                display: grid;
-                grid-template-columns: repeat(3, 1fr);
-                gap: 1.5rem;
-            }
-            .card {
-                background: var(--card-bg);
+                gap: 10px;
+                background: #fff;
+                padding: 8px 15px;
                 border: 1px solid var(--border);
                 border-radius: 8px;
-                padding: 1.5rem;
             }
-            .card-wide {
-                grid-column: span 2;
+            .grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+                gap: 1.25rem;
             }
-
-            /* Data Table Page (Hidden by default) */
-            #data-page {
+            .card {
+                background: var(--card);
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                padding: 1.25rem;
+                display: flex;
+                flex-direction: column;
+            }
+            .card-title {
+                font-size: 0.75rem;
+                font-weight: 700;
+                color: var(--muted);
+                text-transform: uppercase;
+                margin-bottom: 1rem;
+            }
+            .control-tray {
+                background: #f1f5f9;
+                padding: 12px;
+                border-radius: 8px;
+                margin-top: auto;
+                border: 1px solid var(--border);
+            }
+            .logic-row,
+            .switch-row {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 5px;
+            }
+            .logic-status {
+                font-size: 0.65rem;
+                font-weight: 800;
+                padding: 2px 6px;
+                border-radius: 4px;
+            }
+            .status-active {
+                background: #dcfce7;
+                color: #166534;
+            }
+            .status-inactive {
+                background: #fee2e2;
+                color: #991b1b;
+            }
+            .btn {
+                padding: 6px 12px;
+                border-radius: 5px;
+                border: 1px solid var(--border);
+                cursor: pointer;
+                font-weight: 600;
+                font-size: 0.8rem;
+                transition: 0.2s;
+            }
+            .btn:hover {
+                opacity: 0.8;
+            }
+            .val {
+                font-size: 1.4rem;
+                font-weight: 700;
+            }
+            .chart-box {
+                height: 100px;
+                margin-top: 10px;
+            }
+            #history-view {
                 display: none;
             }
             table {
                 width: 100%;
                 border-collapse: collapse;
                 margin-top: 1rem;
-                font-size: 0.9rem;
+                background: #fff;
             }
-            th {
-                text-align: left;
-                padding: 0.75rem;
-                border-bottom: 2px solid var(--border);
-                color: var(--text-muted);
-            }
+            th,
             td {
-                padding: 0.75rem;
+                text-align: left;
+                padding: 12px;
                 border-bottom: 1px solid var(--border);
-            }
-
-            .hidden {
-                display: none !important;
+                font-size: 0.85rem;
             }
         </style>
     </head>
@@ -120,240 +138,315 @@
         <div class="container">
             <header>
                 <div>
-                    <h1 id="page-title">Water treatment system, SEM 129</h1>
-                    <p style="font-size: 0.875rem; color: var(--text-muted)">
-                        Session Telemetry v2.6
-                    </p>
+                    <h1 id="view-title" style="font-size: 2rem">
+                        Water treatment system, SEM 129
+                    </h1>
                 </div>
-                <div class="nav-group">
-                    <button
-                        class="btn btn-outline"
-                        id="toggle-view-btn"
-                        onclick="toggleView()"
-                    >
+                <div class="nav-controls">
+                    <button class="btn" onclick="toggleView()" id="view-toggle">
                         View History Data
                     </button>
-                    <button class="btn btn-primary" onclick="downloadCSV()">
+                    <button
+                        class="btn"
+                        style="
+                            background: var(--accent);
+                            color: white;
+                            border: none;
+                        "
+                        onclick="exportCSV()"
+                    >
                         Download CSV
                     </button>
                 </div>
             </header>
 
-            <!-- LIVE DASHBOARD VIEW -->
-            <div id="dashboard-page" class="dashboard-grid">
+            <div id="live-view" class="grid">
                 <div class="card">
-                    <p
-                        style="
-                            font-size: 0.75rem;
-                            font-weight: 700;
-                            color: var(--text-muted);
-                            margin-bottom: 1rem;
-                        "
-                    >
-                        CONTROLS
-                    </p>
-                    <label
-                        style="
-                            font-size: 0.85rem;
-                            display: block;
-                            margin-bottom: 0.5rem;
-                        "
-                        >Pump Speed</label
-                    >
-                    <input
-                        type="range"
-                        id="pump-slider"
-                        style="width: 100%; margin-bottom: 1rem"
-                        value="40"
-                    />
-                    <label
-                        style="
-                            font-size: 0.85rem;
-                            display: block;
-                            margin-bottom: 0.5rem;
-                        "
-                        >Valve Opening</label
-                    >
-                    <input
-                        type="range"
-                        id="valve-slider"
-                        style="width: 100%"
-                        value="60"
-                    />
+                    <div class="card-title">Main Intake Flow</div>
+                    <div class="val" id="flow-v">Loading...</div>
+                    <div class="chart-box"><canvas id="c-flow"></canvas></div>
                 </div>
 
-                <div class="card card-wide">
-                    <div style="height: 200px">
-                        <canvas id="telemetryChart"></canvas>
+                <div class="card">
+                    <div class="card-title">Flocculation Stage 3</div>
+                    <div class="val" id="floc-ph">Loading...</div>
+                    <div class="chart-box"><canvas id="c-floc"></canvas></div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">Filtration Unit</div>
+                    <div>
+                        Turbidity: <span class="val" id="filt-ntu">0.00</span>
+                        <small>NTU</small>
+                    </div>
+                    <div class="chart-box"><canvas id="c-turb"></canvas></div>
+                    <div class="control-tray">
+                        <div class="logic-row">
+                            <span
+                                >Solenoid S4:
+                                <b id="s4-physical-state">CLOSED</b></span
+                            >
+                            <span
+                                id="trigger-source"
+                                class="logic-status status-inactive"
+                                >IDLE</span
+                            >
+                        </div>
+                        <div class="switch-row">
+                            <label style="font-size: 0.75rem; font-weight: 600"
+                                >Threshold:</label
+                            >
+                            <div>
+                                <input
+                                    type="number"
+                                    id="ntu-threshold"
+                                    value="5.0"
+                                    step="0.1"
+                                    style="width: 50px; padding: 2px"
+                                />
+                                <small>NTU</small>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <div class="card">
-                    <p style="color: var(--text-muted); font-size: 0.75rem">
-                        LIVE FLOW
-                    </p>
-                    <h2 id="flow-val" style="font-size: 2rem">
-                        0.0
-                        <span style="font-size: 1rem; font-weight: 400"
-                            >L/min</span
-                        >
-                    </h2>
-                </div>
-
-                <div class="card card-wide">
-                    <p style="color: var(--text-muted); font-size: 0.75rem">
-                        SESSION LOG
-                    </p>
+                    <div class="card-title">Final Effluent Tank</div>
                     <div
-                        id="log-list"
                         style="
-                            font-size: 0.8rem;
-                            margin-top: 0.5rem;
-                            max-height: 80px;
-                            overflow-y: auto;
+                            display: flex;
+                            justify-content: space-between;
+                            margin-bottom: 5px;
                         "
-                    ></div>
+                    >
+                        <div>
+                            pH: <b id="eff-ph" style="color: #8b5cf6">0.00</b>
+                        </div>
+                        <div>
+                            EC: <b id="eff-ec" style="color: #10b981">0</b>
+                            <small>µS/cm</small>
+                        </div>
+                    </div>
+                    <div class="chart-box" style="height: 70px">
+                        <canvas id="c-eff-ph"></canvas>
+                    </div>
+                    <div class="chart-box" style="height: 70px">
+                        <canvas id="c-eff-ec"></canvas>
+                    </div>
+                    <div class="control-tray" style="background: #f8fafc">
+                        <div class="switch-row">
+                            <span style="font-size: 0.75rem; font-weight: 600"
+                                >Manual Controls:</span
+                            >
+                            <div style="display: flex; gap: 5px">
+                                <button
+                                    class="btn"
+                                    style="
+                                        background: var(--success);
+                                        color: white;
+                                    "
+                                    onclick="sendCommand('/pump/start')"
+                                >
+                                    PUMP ON
+                                </button>
+                                <button
+                                    class="btn"
+                                    style="
+                                        background: var(--danger);
+                                        color: white;
+                                    "
+                                    onclick="sendCommand('/pump/stop')"
+                                >
+                                    PUMP OFF
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <!-- DATA HISTORY VIEW -->
-            <div id="data-page" class="card">
-                <div
-                    style="
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                    "
-                >
-                    <h3>Session Logs (Last 50 Records)</h3>
-                </div>
-                <table id="data-table">
+            <div id="history-view" class="card">
+                <table>
                     <thead>
                         <tr>
-                            <th>Timestamp</th>
-                            <th>Pump %</th>
-                            <th>Valve %</th>
-                            <th>Flow (L/min)</th>
-                            <th>Pressure (bar)</th>
+                            <th>Time</th>
+                            <th>Flow</th>
+                            <th>Floc pH</th>
+                            <th>NTU</th>
+                            <th>Eff pH</th>
+                            <th>EC</th>
                         </tr>
                     </thead>
-                    <tbody id="table-body">
-                        <!-- Records injected here -->
-                    </tbody>
+                    <tbody id="table-body"></tbody>
                 </table>
             </div>
         </div>
 
         <script>
-            let sessionData = []; // Stores all history for CSV and Table
-            const maxTableRows = 50;
+            let archive = [];
 
-            // View Switching Logic
-            function toggleView() {
-                const dash = document.getElementById("dashboard-page");
-                const data = document.getElementById("data-page");
-                const btn = document.getElementById("toggle-view-btn");
-                const title = document.getElementById("page-title");
+            // Chart Helper
+            function mkChart(id, color) {
+                return new Chart(document.getElementById(id), {
+                    type: "line",
+                    data: {
+                        labels: Array(20).fill(""),
+                        datasets: [
+                            {
+                                borderColor: color,
+                                data: Array(20).fill(null),
+                                borderWidth: 2,
+                                pointRadius: 0,
+                                tension: 0.3,
+                                fill: false,
+                            },
+                        ],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { display: false },
+                            y: { beginAtZero: false },
+                        },
+                        animation: false,
+                    },
+                });
+            }
 
-                if (dash.classList.contains("hidden")) {
-                    dash.classList.remove("hidden");
-                    data.style.display = "none";
-                    btn.innerText = "View History Data";
-                    title.innerText = "AquaControl Dashboard";
-                } else {
-                    dash.classList.add("hidden");
-                    data.style.display = "block";
-                    btn.innerText = "Back to Dashboard";
-                    title.innerText = "System History Report";
-                    refreshTable();
+            const charts = {
+                flow: mkChart("c-flow", "#2563eb"),
+                floc: mkChart("c-floc", "#10b981"),
+                turb: mkChart("c-turb", "#ef4444"),
+                effPh: mkChart("c-eff-ph", "#8b5cf6"),
+                effEc: mkChart("c-eff-ec", "#10b981"),
+            };
+
+            // Call FastAPI Metrics Bridge
+            async function getMetric(key) {
+                try {
+                    const response = await fetch(`/api/metrics/${key}`);
+                    const data = await response.json();
+                    return data.value || 0;
+                } catch (err) {
+                    return 0;
                 }
             }
 
-            // CSV Export Logic
-            function downloadCSV() {
-                if (sessionData.length === 0)
-                    return alert("No data collected yet.");
+            // Call FastAPI Zenoh Publishers
+            async function sendCommand(path) {
+                try {
+                    const res = await fetch(path, { method: "POST" });
+                    const status = await res.json();
+                    console.log("Command sent:", path, status);
+                } catch (e) {
+                    console.error("Zenoh Error:", e);
+                }
+            }
 
-                let csvContent =
-                    "data:text/csv;charset=utf-8,Timestamp,PumpSpeed,ValvePos,FlowRate,Pressure\n";
-                sessionData.forEach((row) => {
-                    csvContent += `${row.time},${row.pump},${row.valve},${row.flow},${row.pressure}\n`;
+            async function refreshData() {
+                const [vFlow, vFlocPh, vNtu, vEffPh, vEc] = await Promise.all([
+                    getMetric("flow"),
+                    getMetric("flocPh"),
+                    getMetric("ntu"),
+                    getMetric("effPh"),
+                    getMetric("ec"),
+                ]);
+
+                const d = {
+                    time: new Date().toLocaleTimeString("en-GB"),
+                    flow: vFlow.toFixed(1),
+                    flocPh: vFlocPh.toFixed(2),
+                    ntu: vNtu.toFixed(2),
+                    effPh: vEffPh.toFixed(2),
+                    ec: vEc.toFixed(0),
+                };
+
+                // Update UI Numbers
+                document.getElementById("flow-v").innerText = d.flow + " L/m";
+                document.getElementById("floc-ph").innerText = d.flocPh + " pH";
+                document.getElementById("filt-ntu").innerText = d.ntu;
+                document.getElementById("eff-ph").innerText = d.effPh;
+                document.getElementById("eff-ec").innerText = d.ec;
+
+                // Threshold logic for UI feedback
+                const thresh = parseFloat(
+                    document.getElementById("ntu-threshold").value,
+                );
+                const s4State = document.getElementById("s4-physical-state");
+                const s4Tag = document.getElementById("trigger-source");
+                if (parseFloat(d.ntu) > thresh) {
+                    s4State.innerText = "OPEN";
+                    s4State.style.color = "var(--danger)";
+                    s4Tag.className = "logic-status status-active";
+                    s4Tag.innerText = "THRESHOLD TRIGGER";
+                } else {
+                    s4State.innerText = "CLOSED";
+                    s4State.style.color = "var(--text)";
+                    s4Tag.className = "logic-status status-inactive";
+                    s4Tag.innerText = "STANDBY";
+                }
+
+                // Update Charts
+                const pairs = [
+                    [charts.flow, d.flow],
+                    [charts.floc, d.flocPh],
+                    [charts.turb, d.ntu],
+                    [charts.effPh, d.effPh],
+                    [charts.effEc, d.ec],
+                ];
+                pairs.forEach((p) => {
+                    p[0].data.datasets[0].data.push(p[1]);
+                    p[0].data.datasets[0].data.shift();
+                    p[0].update("none");
                 });
 
-                const encodedUri = encodeURI(csvContent);
-                const link = document.createElement("a");
-                link.setAttribute("href", encodedUri);
-                link.setAttribute(
-                    "download",
-                    `aquacontrol_export_${Date.now()}.csv`,
-                );
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+                archive.push(d);
+                if (archive.length > 100) archive.shift();
             }
 
-            // Update Table
-            function refreshTable() {
-                const tbody = document.getElementById("table-body");
-                tbody.innerHTML = "";
-                // Show latest records first
-                [...sessionData]
-                    .reverse()
-                    .slice(0, maxTableRows)
-                    .forEach((row) => {
-                        const tr = document.createElement("tr");
-                        tr.innerHTML = `<td>${row.time}</td><td>${row.pump}%</td><td>${row.valve}%</td><td>${row.flow}</td><td>${row.pressure}</td>`;
-                        tbody.appendChild(tr);
-                    });
+            setInterval(refreshData, 2000);
+            refreshData();
+
+            function toggleView() {
+                const live = document.getElementById("live-view");
+                const hist = document.getElementById("history-view");
+                const isHist = hist.style.display === "block";
+                live.style.display = isHist ? "grid" : "none";
+                hist.style.display = isHist ? "none" : "block";
+                document.getElementById("view-toggle").innerText = isHist
+                    ? "View History Data"
+                    : "Back to Dash";
+
+                if (!isHist) {
+                    document.getElementById("table-body").innerHTML = archive
+                        .slice(-20)
+                        .reverse()
+                        .map(
+                            (r) =>
+                                `<tr><td>${r.time}</td><td>${r.flow}</td><td>${r.flocPh}</td><td>${r.ntu}</td><td>${r.effPh}</td><td>${r.ec}</td></tr>`,
+                        )
+                        .join("");
+                }
             }
 
-            // Setup Chart
-            const ctx = document
-                .getElementById("telemetryChart")
-                .getContext("2d");
-            const chart = new Chart(ctx, {
-                type: "line",
-                data: {
-                    labels: Array(20).fill(""),
-                    datasets: [
-                        {
-                            label: "Flow",
-                            borderColor: "#2563eb",
-                            data: Array(20).fill(0),
-                            tension: 0.4,
-                            pointRadius: 0,
-                        },
-                    ],
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: { x: { display: false }, y: { beginAtZero: true } },
-                },
-            });
-
-            // Simulation Loop
-            setInterval(() => {
-                const pump = document.getElementById("pump-slider").value;
-                const valve = document.getElementById("valve-slider").value;
-                const flow = (
-                    pump * (valve / 100) * 0.45 +
-                    Math.random()
-                ).toFixed(1);
-                const pressure = (pump * 0.035).toFixed(1);
-                const time = new Date().toLocaleTimeString("en-GB");
-
-                // Update Live UI
-                document.getElementById("flow-val").innerHTML =
-                    `${flow} <span style="font-size: 1rem;">L/min</span>`;
-                chart.data.datasets[0].data.push(flow);
-                chart.data.datasets[0].data.shift();
-                chart.update("none");
-
-                // Store Data
-                sessionData.push({ time, pump, valve, flow, pressure });
-                if (sessionData.length > 500) sessionData.shift(); // Memory management
-            }, 1000);
+            function exportCSV() {
+                let csv =
+                    "Time,Flow,FlocPh,NTU,EffPh,EC\n" +
+                    archive
+                        .map(
+                            (r) =>
+                                `${r.time},${r.flow},${r.flocPh},${r.ntu},${r.effPh},${r.ec}`,
+                        )
+                        .join("\n");
+                const blob = new Blob([csv], { type: "text/csv" });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.setAttribute("href", url);
+                a.setAttribute("download", "wtp_data.csv");
+                a.click();
+            }
         </script>
     </body>
 </html>

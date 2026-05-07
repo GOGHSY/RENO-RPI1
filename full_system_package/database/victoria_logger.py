@@ -1,18 +1,22 @@
-import requests
 from datetime import datetime
+
+import requests
+
 from ..utils import config
 
 
 class VictoriaMetricsLogger:
     def __init__(self):
-        self.url = f"{config.VM_URL}/api/v1/write"
+        self.url = f"{config.VM_URL}/api/v1/import"
 
     def _send(self, line: str):
-        try:
-            r = requests.post(self.url, data=line, timeout=2)
-            r.raise_for_status()
-        except Exception as e:
-            print(f"[VictoriaMetrics] write failed: {e}")
+        for _ in range(3):  # retry 3 times
+            try:
+                r = requests.post(self.url, data=line, timeout=2)
+                r.raise_for_status()
+                return
+            except Exception as e:
+                print(f"[VictoriaMetrics] retrying: {e}")
 
     # -------------------------
     # 1. FIXED STRUCTURE LOGGER

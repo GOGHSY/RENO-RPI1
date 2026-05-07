@@ -1,44 +1,94 @@
 import os
 from pathlib import Path
-from fastapi import FastAPI, Request
+
+import requests
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+
 import zenoh
 
 app = FastAPI()
 
+# Directory Setup
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
+# VictoriaMetrics endpoint
+VM_URL = "http://localhost:8428/api/v1/query"
+
+# Zenoh Config
 config = zenoh.Config()
-config.insert_json5("connect/endpoints", '["tcp/127.0.0.1:7447"]')
+# Ensure your Zenoh router or endpoints are configured correctly here
 z = zenoh.open(config)
 pub = z.declare_publisher("water/control")
 
+
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
-    return templates.TemplateResponse(request, "index.html")
+    return templates.TemplateResponse("index.html", {"request": request})
 
+
+@app.get("/api/metrics/{metric_key}")
+def get_vm_metric(metric_key: str):
+    """Bridge for the frontend to fetch VictoriaMetrics data"""
+    metrics_map = {
+        "flow": "intake_flow_rate",
+        "flocPh": "floc_ph_level",
+        "ntu": "filtration_turbidity",
+        "effPh": "effluent_ph_level",
+        "ec": "effluent_conductivity",
+    }
+
+    query = metrics_map.get(metric_key)
+    if not query:
+        return {"value": 0.0, "error": "Invalid key"}
+
+    try:
+        # Use synchronous requests since we aren't using httpx
+        response = requests.get(VM_URL, params={"query": query}, timeout=2)
+        res_json = response.json()
+
+        if res_json.get("data") and res_json["data"]["result"]:
+            # VictoriaMetrics returns [timestamp, "value"]
+            val = res_json["data"]["result"][0]["value"][1]
+            return {"value": float(val)}
+        return {"value": 0.0}
+    except Exception as e:
+        return {"value": 0.0, "error": str(e)}
+
+
+# Zenoh POST Endpoints
 @app.post("/valve/open")
 def valve_open():
     pub.put('{"cmd":"valve_open"}')
     return {"ok": True}
+
 
 @app.post("/valve/close")
 def valve_close():
     pub.put('{"cmd":"valve_close"}')
     return {"ok": True}
 
+
 @app.post("/pump/start")
 def pump_start():
     pub.put('{"cmd":"pump_start"}')
     return {"ok": True}
+
 
 @app.post("/pump/stop")
 def pump_stop():
     pub.put('{"cmd":"pump_stop"}')
     return {"ok": True}
 
+
 @app.get("/status")
 def status():
     return {"system": "running", "valve": "unknown", "pump": "unknown"}
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)
