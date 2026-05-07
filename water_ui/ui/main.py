@@ -1,27 +1,44 @@
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import requests
+import zenoh
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-import zenoh
-
-app = FastAPI()
-
-# Directory Setup
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
-# VictoriaMetrics endpoint
 VM_URL = "http://localhost:8428/api/v1/query"
 
-# Zenoh Config
-config = zenoh.Config()
-# Ensure your Zenoh router or endpoints are configured correctly here
-z = zenoh.open(config)
-pub = z.declare_publisher("water/control")
+ZENOH_KEY = "water/control"
+
+_zenoh_session = None
+_zenoh_pub = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global _zenoh_session, _zenoh_pub
+    conf = zenoh.Config()
+    _zenoh_session = zenoh.open(conf)
+    _zenoh_pub = _zenoh_session.declare_publisher(ZENOH_KEY)
+    yield
+    if _zenoh_pub:
+        _zenoh_pub.undeclare()
+    if _zenoh_session:
+        _zenoh_session.close()
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+def _publish(cmd: str):
+    if _zenoh_pub is None:
+        raise HTTPException(status_code=503, detail="Zenoh not connected")
+    _zenoh_pub.put(cmd.encode())
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -31,7 +48,6 @@ async def dashboard(request: Request):
 
 @app.get("/api/metrics/{metric_key}")
 def get_vm_metric(metric_key: str):
-    """Bridge for the frontend to fetch VictoriaMetrics data"""
     metrics_map = {
         "flow": "intake_flow_rate",
         "flocPh": "floc_ph_level",
@@ -45,12 +61,9 @@ def get_vm_metric(metric_key: str):
         return {"value": 0.0, "error": "Invalid key"}
 
     try:
-        # Use synchronous requests since we aren't using httpx
         response = requests.get(VM_URL, params={"query": query}, timeout=2)
         res_json = response.json()
-
         if res_json.get("data") and res_json["data"]["result"]:
-            # VictoriaMetrics returns [timestamp, "value"]
             val = res_json["data"]["result"][0]["value"][1]
             return {"value": float(val)}
         return {"value": 0.0}
@@ -58,28 +71,27 @@ def get_vm_metric(metric_key: str):
         return {"value": 0.0, "error": str(e)}
 
 
-# Zenoh POST Endpoints
 @app.post("/valve/open")
 def valve_open():
-    pub.put('{"cmd":"valve_open"}')
+    _publish('{"cmd":"valve_open"}')
     return {"ok": True}
 
 
 @app.post("/valve/close")
 def valve_close():
-    pub.put('{"cmd":"valve_close"}')
+    _publish('{"cmd":"valve_close"}')
     return {"ok": True}
 
 
 @app.post("/pump/start")
 def pump_start():
-    pub.put('{"cmd":"pump_start"}')
+    _publish('{"cmd":"pump_start"}')
     return {"ok": True}
 
 
 @app.post("/pump/stop")
 def pump_stop():
-    pub.put('{"cmd":"pump_stop"}')
+    _publish('{"cmd":"pump_stop"}')
     return {"ok": True}
 
 
