@@ -186,6 +186,42 @@ def pump_stop():
 
 # ── Debug ──────────────────────────────────────────────────────────────────
 
+@app.get("/api/table")
+def get_table(start: int, end: int):
+    duration = end - start
+    if duration <= 3600:
+        step = "10s"
+    elif duration <= 86400:
+        step = "5m"
+    else:
+        step = "30m"
+
+    data: dict[int, dict] = {}
+    timestamps: set[int] = set()
+
+    for col, vm_name in ALL_METRICS.items():
+        try:
+            r = requests.get(VM_RANGE_URL, params={
+                "query": vm_name, "start": start, "end": end, "step": step,
+            }, timeout=15)
+            j = r.json()
+            if j.get("data") and j["data"]["result"]:
+                for ts, val in j["data"]["result"][0]["values"]:
+                    ts = int(float(ts))
+                    timestamps.add(ts)
+                    data.setdefault(ts, {})[col] = round(float(val), 4)
+        except Exception:
+            pass
+
+    cols = list(ALL_METRICS.keys())
+    rows = []
+    for ts in sorted(timestamps, reverse=True):   # newest first
+        dt = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        rows.append([dt] + [data.get(ts, {}).get(c) for c in cols])
+
+    return {"columns": ["timestamp_utc"] + cols, "rows": rows, "total": len(rows)}
+
+
 @app.get("/api/debug/vm")
 def debug_vm():
     try:
