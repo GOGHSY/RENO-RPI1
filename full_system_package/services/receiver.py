@@ -16,7 +16,7 @@ influx = VictoriaMetricsLogger()
 
 def listener(sample):
     try:
-        payload = sample.payload.decode()
+        payload = bytes(sample.payload).decode("utf-8")
         data = json.loads(payload)
 
         print("\n--- Sensor Data Received ---")

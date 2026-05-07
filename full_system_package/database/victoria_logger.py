@@ -12,7 +12,12 @@ class VictoriaMetricsLogger:
     def _send(self, line: str):
         for _ in range(3):  # retry 3 times
             try:
-                r = requests.post(self.url, data=line, timeout=2)
+                r = requests.post(
+                    self.url,
+                    data=line.encode("utf-8"),
+                    headers={"Content-Type": "text/plain"},
+                    timeout=2,
+                )
                 r.raise_for_status()
                 return
             except Exception as e:

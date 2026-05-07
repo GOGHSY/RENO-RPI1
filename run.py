@@ -16,9 +16,21 @@ ZENOHD_BIN            = "/usr/local/bin/zenohd"
 _procs = []
 
 
+def port_open(port):
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(("127.0.0.1", port)) == 0
+
+
 def launch(name, cmd):
     print(f"Starting {name}...")
-    p = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    p = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    time.sleep(1)
+    if p.poll() is not None:
+        err = p.stderr.read().decode(errors="replace")
+        print(f"[ERROR] {name} exited immediately: {err[:200]}")
+    else:
+        print(f"{name} running (pid {p.pid})")
     _procs.append(p)
     return p
 
@@ -44,13 +56,19 @@ def run_ui():
 
 if __name__ == "__main__":
     try:
-        launch("VictoriaMetrics", [
-            VICTORIA_METRICS_BIN,
-            "-httpListenAddr=:8428",
-            f"-storageDataPath={VICTORIA_METRICS_DATA}",
-        ])
+        if port_open(8428):
+            print("VictoriaMetrics already running, skipping launch")
+        else:
+            launch("VictoriaMetrics", [
+                VICTORIA_METRICS_BIN,
+                "-httpListenAddr=:8428",
+                f"-storageDataPath={VICTORIA_METRICS_DATA}",
+            ])
 
-        launch("Zenoh router", [ZENOHD_BIN])
+        if port_open(7447):
+            print("Zenoh router already running, skipping launch")
+        else:
+            launch("Zenoh router", [ZENOHD_BIN])
 
         # Give infrastructure a moment to come up
         time.sleep(2)
