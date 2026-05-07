@@ -1,4 +1,7 @@
+import base64
 import csv
+import os
+import secrets
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from io import StringIO
@@ -7,7 +10,7 @@ from pathlib import Path
 import requests
 import zenoh
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -17,6 +20,15 @@ VM_URL       = "http://localhost:8428/api/v1/query"
 VM_RANGE_URL = "http://localhost:8428/api/v1/query_range"
 
 ZENOH_KEY = "water/control"
+
+# ── Auth ───────────────────────────────────────────────────────────────────
+# Set WTP_USER / WTP_PASS env vars to change credentials.
+# e.g.  export WTP_USER=sem129  WTP_PASS=mypassword
+BASIC_USER = os.getenv("WTP_USER", "admin")
+BASIC_PASS = os.getenv("WTP_PASS", "sem129wtp")
+
+if BASIC_USER == "admin" and BASIC_PASS == "sem129wtp":
+    print("⚠  Using default credentials. Set WTP_USER and WTP_PASS env vars to change them.")
 
 # Every metric in the system with its VictoriaMetrics name
 ALL_METRICS = {
@@ -57,6 +69,23 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+
+@app.middleware("http")
+async def basic_auth(request: Request, call_next):
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Basic "):
+        try:
+            user, pw = base64.b64decode(auth[6:]).decode().split(":", 1)
+            if (secrets.compare_digest(user, BASIC_USER) and
+                    secrets.compare_digest(pw, BASIC_PASS)):
+                return await call_next(request)
+        except Exception:
+            pass
+    return Response(
+        status_code=401,
+        headers={"WWW-Authenticate": 'Basic realm="WTP Dashboard"'},
+    )
 
 
 def _publish(cmd: str):
