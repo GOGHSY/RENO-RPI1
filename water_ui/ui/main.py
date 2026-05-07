@@ -1,19 +1,43 @@
-import os
+import csv
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+from io import StringIO
 from pathlib import Path
 
 import requests
 import zenoh
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
-VM_URL = "http://localhost:8428/api/v1/query"
+VM_URL       = "http://localhost:8428/api/v1/query"
+VM_RANGE_URL = "http://localhost:8428/api/v1/query_range"
 
 ZENOH_KEY = "water/control"
+
+# Every metric in the system with its VictoriaMetrics name
+ALL_METRICS = {
+    # RPi1 — Filtration
+    "flow_rate":  "filtration_flow_rate",
+    "turbidity":  "filtration_turbidity",
+    "valve1":     "filtration_valve_1_active",
+    "valve2":     "filtration_valve_2_active",
+    # RPi2 — Chemical Treatment
+    "ORP":   "water_treatment_ORP",
+    "pH1":   "water_treatment_pH1",
+    "pH2":   "water_treatment_pH2",
+    "pH3":   "water_treatment_pH3",
+    "RTD1":  "water_treatment_RTD1",
+    "RTD2":  "water_treatment_RTD2",
+    "RTD3":  "water_treatment_RTD3",
+    "RTD4":  "water_treatment_RTD4",
+    "EC":    "water_treatment_EC",
+    "Pump1": "water_treatment_Pump1",
+    "Pump2": "water_treatment_Pump2",
+}
 
 _zenoh_session = None
 _zenoh_pub = None
@@ -41,35 +65,100 @@ def _publish(cmd: str):
     _zenoh_pub.put(cmd.encode())
 
 
+def _instant(vm_name: str):
+    try:
+        r = requests.get(VM_URL, params={"query": vm_name}, timeout=2)
+        j = r.json()
+        if j.get("data") and j["data"]["result"]:
+            return float(j["data"]["result"][0]["value"][1])
+    except Exception:
+        pass
+    return None
+
+
+# ── Pages ──────────────────────────────────────────────────────────────────
+
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
     return templates.TemplateResponse(request=request, name="index.html")
 
 
-@app.get("/api/metrics/{metric_key}")
-def get_vm_metric(metric_key: str):
-    metrics_map = {
-        "flow": "intake_flow_rate",
-        "flocPh": "floc_ph_level",
-        "ntu": "filtration_turbidity",
-        "effPh": "effluent_ph_level",
-        "ec": "effluent_conductivity",
-    }
+# ── Live data ──────────────────────────────────────────────────────────────
 
-    query = metrics_map.get(metric_key)
-    if not query:
-        return {"value": 0.0, "error": "Invalid key"}
+@app.get("/api/live")
+def get_live():
+    """All current metric values in one request."""
+    return {k: _instant(v) for k, v in ALL_METRICS.items()}
 
+
+# ── Historical range ───────────────────────────────────────────────────────
+
+@app.get("/api/range")
+def get_range(metric: str, start: int, end: int, step: str = "60s"):
+    vm_name = ALL_METRICS.get(metric)
+    if not vm_name:
+        return {"values": [], "error": "Unknown metric"}
     try:
-        response = requests.get(VM_URL, params={"query": query}, timeout=2)
-        res_json = response.json()
-        if res_json.get("data") and res_json["data"]["result"]:
-            val = res_json["data"]["result"][0]["value"][1]
-            return {"value": float(val)}
-        return {"value": 0.0}
+        r = requests.get(VM_RANGE_URL, params={
+            "query": vm_name, "start": start, "end": end, "step": step,
+        }, timeout=10)
+        j = r.json()
+        if j.get("data") and j["data"]["result"]:
+            return {"values": [
+                [int(float(v[0])) * 1000, float(v[1])]
+                for v in j["data"]["result"][0]["values"]
+            ]}
     except Exception as e:
-        return {"value": 0.0, "error": str(e)}
+        return {"values": [], "error": str(e)}
+    return {"values": []}
 
+
+# ── CSV download ───────────────────────────────────────────────────────────
+
+@app.get("/api/download")
+def download_csv(start: int, end: int):
+    duration = end - start
+    if duration <= 3600:
+        step = "10s"
+    elif duration <= 86400:
+        step = "5m"
+    else:
+        step = "30m"
+
+    data: dict[int, dict] = {}
+    timestamps: set[int] = set()
+
+    for col, vm_name in ALL_METRICS.items():
+        try:
+            r = requests.get(VM_RANGE_URL, params={
+                "query": vm_name, "start": start, "end": end, "step": step,
+            }, timeout=15)
+            j = r.json()
+            if j.get("data") and j["data"]["result"]:
+                for ts, val in j["data"]["result"][0]["values"]:
+                    ts = int(float(ts))
+                    timestamps.add(ts)
+                    data.setdefault(ts, {})[col] = val
+        except Exception:
+            pass
+
+    buf = StringIO()
+    writer = csv.writer(buf)
+    cols = list(ALL_METRICS.keys())
+    writer.writerow(["timestamp_utc"] + cols)
+    for ts in sorted(timestamps):
+        dt = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        writer.writerow([dt] + [data.get(ts, {}).get(c, "") for c in cols])
+
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=wtp_data.csv"},
+    )
+
+
+# ── Controls ───────────────────────────────────────────────────────────────
 
 @app.post("/valve/open")
 def valve_open():
@@ -95,9 +184,10 @@ def pump_stop():
     return {"ok": True}
 
 
+# ── Debug ──────────────────────────────────────────────────────────────────
+
 @app.get("/api/debug/vm")
 def debug_vm():
-    """List all metric names stored in VictoriaMetrics — use to verify data is arriving."""
     try:
         r = requests.get("http://localhost:8428/api/v1/label/__name__/values", timeout=3)
         return r.json()
@@ -105,41 +195,11 @@ def debug_vm():
         return {"error": str(e)}
 
 
-@app.get("/api/rpi2/metrics")
-def get_rpi2_metrics():
-    rpi2_map = {
-        "ORP":  "water_treatment_ORP",
-        "pH1":  "water_treatment_pH1",
-        "pH2":  "water_treatment_pH2",
-        "pH3":  "water_treatment_pH3",
-        "RTD1": "water_treatment_RTD1",
-        "RTD2": "water_treatment_RTD2",
-        "RTD3": "water_treatment_RTD3",
-        "RTD4": "water_treatment_RTD4",
-        "EC":   "water_treatment_EC",
-        "Pump1":"water_treatment_Pump1",
-        "Pump2":"water_treatment_Pump2",
-    }
-    result = {}
-    for key, query in rpi2_map.items():
-        try:
-            r = requests.get(VM_URL, params={"query": query}, timeout=2)
-            j = r.json()
-            if j.get("data") and j["data"]["result"]:
-                result[key] = float(j["data"]["result"][0]["value"][1])
-            else:
-                result[key] = None
-        except Exception:
-            result[key] = None
-    return result
-
-
 @app.get("/status")
 def status():
-    return {"system": "running", "valve": "unknown", "pump": "unknown"}
+    return {"system": "running"}
 
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8000)
