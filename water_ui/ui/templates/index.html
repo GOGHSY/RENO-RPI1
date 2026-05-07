@@ -265,6 +265,58 @@
                 </div>
             </div>
 
+            <!-- RPi2 Sensor Section -->
+            <div id="rpi2-section" style="margin-top:1.5rem;">
+                <h2 style="font-size:1.1rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:1rem;letter-spacing:.05em;">
+                    RPi2 — Water Treatment Sensors
+                </h2>
+                <div class="grid">
+                    <div class="card">
+                        <div class="card-title">pH Sensors</div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+                            <div>pH1 <small>(Pre Mix)</small><br><b id="r2-ph1" style="color:#2563eb">—</b></div>
+                            <div>pH2 <small>(Post Floc)</small><br><b id="r2-ph2" style="color:#10b981">—</b></div>
+                            <div>pH3 <small>(Post Sed)</small><br><b id="r2-ph3" style="color:#8b5cf6">—</b></div>
+                        </div>
+                        <div class="chart-box"><canvas id="c-r2-ph"></canvas></div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-title">Temperature (RTD)</div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
+                            <div>RTD1 <small>(Pre Mix)</small><br><b id="r2-rtd1">—</b> °C</div>
+                            <div>RTD2 <small>(Pre Mix)</small><br><b id="r2-rtd2">—</b> °C</div>
+                            <div>RTD3 <small>(Post Floc)</small><br><b id="r2-rtd3">—</b> °C</div>
+                            <div>RTD4 <small>(Effluent)</small><br><b id="r2-rtd4">—</b> °C</div>
+                        </div>
+                        <div class="chart-box"><canvas id="c-r2-rtd"></canvas></div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-title">ORP &amp; EC</div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+                            <div>ORP <small>(Pre Mix)</small><br><b id="r2-orp" style="color:#f59e0b">—</b> <small>mV</small></div>
+                            <div>EC <small>(Post Lime)</small><br><b id="r2-ec" style="color:#10b981">—</b> <small>µS/cm</small></div>
+                        </div>
+                        <div class="chart-box"><canvas id="c-r2-orp"></canvas></div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-title">Dosing Pumps</div>
+                        <div style="display:flex;justify-content:space-around;align-items:center;flex:1;padding:10px 0;">
+                            <div style="text-align:center;">
+                                <div style="font-size:.75rem;font-weight:700;color:var(--muted);margin-bottom:4px;">ALUM PUMP</div>
+                                <span id="r2-pump1-badge" class="logic-status status-inactive">—</span>
+                            </div>
+                            <div style="text-align:center;">
+                                <div style="font-size:.75rem;font-weight:700;color:var(--muted);margin-bottom:4px;">LIME PUMP</div>
+                                <span id="r2-pump2-badge" class="logic-status status-inactive">—</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div id="history-view" class="card">
                 <table>
                     <thead>
@@ -412,8 +464,10 @@
             function toggleView() {
                 const live = document.getElementById("live-view");
                 const hist = document.getElementById("history-view");
+                const rpi2 = document.getElementById("rpi2-section");
                 const isHist = hist.style.display === "block";
                 live.style.display = isHist ? "grid" : "none";
+                rpi2.style.display = isHist ? "block" : "none";
                 hist.style.display = isHist ? "none" : "block";
                 document.getElementById("view-toggle").innerText = isHist
                     ? "View History Data"
@@ -430,6 +484,63 @@
                         .join("");
                 }
             }
+
+            // ── RPi2 charts ──────────────────────────────────────────────
+            const rpi2Charts = {
+                ph:  mkChart("c-r2-ph",  "#2563eb"),
+                rtd: mkChart("c-r2-rtd", "#f59e0b"),
+                orp: mkChart("c-r2-orp", "#ef4444"),
+            };
+
+            async function refreshRpi2() {
+                let d;
+                try {
+                    const res = await fetch("/api/rpi2/metrics");
+                    d = await res.json();
+                } catch (e) { return; }
+
+                function fmt(v, dec=2) { return v == null ? "—" : parseFloat(v).toFixed(dec); }
+
+                document.getElementById("r2-ph1").innerText  = fmt(d.pH1);
+                document.getElementById("r2-ph2").innerText  = fmt(d.pH2);
+                document.getElementById("r2-ph3").innerText  = fmt(d.pH3);
+                document.getElementById("r2-rtd1").innerText = fmt(d.RTD1);
+                document.getElementById("r2-rtd2").innerText = fmt(d.RTD2);
+                document.getElementById("r2-rtd3").innerText = fmt(d.RTD3);
+                document.getElementById("r2-rtd4").innerText = fmt(d.RTD4);
+                document.getElementById("r2-orp").innerText  = fmt(d.ORP, 1);
+                document.getElementById("r2-ec").innerText   = fmt(d.EC, 1);
+
+                // Pump badges
+                function pumpBadge(id, val) {
+                    const el = document.getElementById(id);
+                    const active = val != null && parseFloat(val) > 0;
+                    el.className = "logic-status " + (active ? "status-active" : "status-inactive");
+                    el.innerText  = val == null ? "—" : (active ? "ON (" + parseFloat(val).toFixed(0) + ")" : "OFF");
+                }
+                pumpBadge("r2-pump1-badge", d.Pump1);
+                pumpBadge("r2-pump2-badge", d.Pump2);
+
+                // Push latest pH1 into chart
+                if (d.pH1 != null) {
+                    rpi2Charts.ph.data.datasets[0].data.push(parseFloat(d.pH1));
+                    rpi2Charts.ph.data.datasets[0].data.shift();
+                    rpi2Charts.ph.update("none");
+                }
+                if (d.RTD1 != null) {
+                    rpi2Charts.rtd.data.datasets[0].data.push(parseFloat(d.RTD1));
+                    rpi2Charts.rtd.data.datasets[0].data.shift();
+                    rpi2Charts.rtd.update("none");
+                }
+                if (d.ORP != null) {
+                    rpi2Charts.orp.data.datasets[0].data.push(parseFloat(d.ORP));
+                    rpi2Charts.orp.data.datasets[0].data.shift();
+                    rpi2Charts.orp.update("none");
+                }
+            }
+
+            setInterval(refreshRpi2, 2000);
+            refreshRpi2();
 
             function exportCSV() {
                 let csv =

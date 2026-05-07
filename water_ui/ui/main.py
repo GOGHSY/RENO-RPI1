@@ -95,6 +95,35 @@ def pump_stop():
     return {"ok": True}
 
 
+@app.get("/api/rpi2/metrics")
+def get_rpi2_metrics():
+    rpi2_map = {
+        "ORP":  "water_treatment_ORP",
+        "pH1":  "water_treatment_pH1",
+        "pH2":  "water_treatment_pH2",
+        "pH3":  "water_treatment_pH3",
+        "RTD1": "water_treatment_RTD1",
+        "RTD2": "water_treatment_RTD2",
+        "RTD3": "water_treatment_RTD3",
+        "RTD4": "water_treatment_RTD4",
+        "EC":   "water_treatment_EC",
+        "Pump1":"water_treatment_Pump1",
+        "Pump2":"water_treatment_Pump2",
+    }
+    result = {}
+    for key, query in rpi2_map.items():
+        try:
+            r = requests.get(VM_URL, params={"query": query}, timeout=2)
+            j = r.json()
+            if j.get("data") and j["data"]["result"]:
+                result[key] = float(j["data"]["result"][0]["value"][1])
+            else:
+                result[key] = None
+        except Exception:
+            result[key] = None
+    return result
+
+
 @app.get("/status")
 def status():
     return {"system": "running", "valve": "unknown", "pump": "unknown"}
