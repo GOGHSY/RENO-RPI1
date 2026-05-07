@@ -7,9 +7,9 @@ import uvicorn
 from full_system_package import start
 
 # ── Binary paths (adjust if yours differ) ────────────────────────────────────
-VICTORIA_METRICS_BIN  = os.path.expanduser("~/victoria-metrics")
-VICTORIA_METRICS_DATA = os.path.expanduser("~/vm-data")
-ZENOHD_BIN            = os.path.expanduser("~/zenohd")
+VICTORIA_METRICS_BIN  = "/home/suprabha/victoria-metrics-prod"
+VICTORIA_METRICS_DATA = "/home/suprabha/victoria-metrics-data"
+ZENOHD_BIN            = "/usr/local/bin/zenohd"
 # ─────────────────────────────────────────────────────────────────────────────
 
 _procs = []
