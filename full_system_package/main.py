@@ -1,5 +1,4 @@
 import time
-import threading
 from .hardware.flow_sensor import FlowSensor
 from .hardware.solenoid import Solenoid
 import RPi.GPIO as GPIO
@@ -7,7 +6,6 @@ from .database.victoria_logger import VictoriaMetricsLogger
 from .control.manager import ControlManager
 from .utils import config
 from .hardware.turbidity_meter import TurbiditySensor
-from .services.receiver import start_receiver
 
 def start():
     GPIO.setmode(GPIO.BCM)
@@ -18,11 +16,6 @@ def start():
     logger     = VictoriaMetricsLogger()
     brain      = ControlManager()
     turbidity_sensor = TurbiditySensor()
-
-    # Start MQTT receiver in background thread
-    receiver_thread = threading.Thread(target=start_receiver, daemon=True)
-    receiver_thread.start()
-    print("MQTT Receiver started in background...")
 
     print("System Online. Monitoring Dual-Valve Setup...")
 

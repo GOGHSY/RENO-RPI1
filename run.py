@@ -5,6 +5,7 @@ import sys
 import os
 import uvicorn
 from full_system_package import start
+from full_system_package.services.receiver import start_receiver
 
 # ── Binary paths (adjust if yours differ) ────────────────────────────────────
 VICTORIA_METRICS_BIN  = "/home/suprabha/victoria-metrics-prod"
@@ -54,11 +55,15 @@ if __name__ == "__main__":
         # Give infrastructure a moment to come up
         time.sleep(2)
 
+        receiver_thread = threading.Thread(target=start_receiver, daemon=True)
+        receiver_thread.start()
+        print("Zenoh receiver started")
+
         ui_thread = threading.Thread(target=run_ui, daemon=True)
         ui_thread.start()
         print("Web UI      → http://0.0.0.0:8000")
 
-        start()  # blocks (sensor loop + zenoh receiver thread inside)
+        start()  # blocks (sensor loop)
 
     except KeyboardInterrupt:
         print("\nShutting down...")

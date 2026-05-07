@@ -95,6 +95,16 @@ def pump_stop():
     return {"ok": True}
 
 
+@app.get("/api/debug/vm")
+def debug_vm():
+    """List all metric names stored in VictoriaMetrics — use to verify data is arriving."""
+    try:
+        r = requests.get("http://localhost:8428/api/v1/label/__name__/values", timeout=3)
+        return r.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+
 @app.get("/api/rpi2/metrics")
 def get_rpi2_metrics():
     rpi2_map = {
