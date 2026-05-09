@@ -25,7 +25,7 @@ ZENOH_KEY = "water/control"
 # Set WTP_USER / WTP_PASS env vars to change credentials.
 # e.g.  export WTP_USER=sem129  WTP_PASS=mypassword
 BASIC_USER = os.getenv("WTP_USER", "admin")
-BASIC_PASS = os.getenv("WTP_PASS", "sem129wtp")
+BASIC_PASS = os.getenv("WTP_PASS", "reno@123")
 
 if BASIC_USER == "admin" and BASIC_PASS == "sem129wtp":
     print("⚠  Using default credentials. Set WTP_USER and WTP_PASS env vars to change them.")
