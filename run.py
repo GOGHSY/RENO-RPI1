@@ -81,18 +81,15 @@ if __name__ == "__main__":
         ui_thread.start()
         print("Web UI (local)  → http://0.0.0.0:8000")
 
-        # ── Tailscale Funnel (public HTTPS access) ────────────────────────
-        # Exposes the dashboard at https://<hostname>.tailc61b41.ts.net
-        # Requires Funnel to be enabled in your Tailscale admin ACL policy:
-        #   https://login.tailscale.com/admin/acls
-        # Add:  "nodeAttrs": [{"target":["autogroup:self"],"attr":["funnel"]}]
+        # ── Public URL (Tailscale Funnel → ngrok fallback) ───────────────
+        public_url = None
+
         try:
             r = subprocess.run(
                 ["tailscale", "funnel", "--bg", "8000"],
                 capture_output=True, text=True, timeout=10,
             )
             if r.returncode == 0:
-                # Get the public URL from `tailscale funnel status`
                 st = subprocess.run(
                     ["tailscale", "funnel", "status"],
                     capture_output=True, text=True, timeout=5,
@@ -100,15 +97,31 @@ if __name__ == "__main__":
                 url_line = next(
                     (l for l in st.stdout.splitlines() if "https://" in l), None
                 )
-                public_url = url_line.strip().split()[0] if url_line else "https://<hostname>.tailc61b41.ts.net"
-                print(f"Web UI (public) → {public_url}")
+                public_url = url_line.strip().split()[0] if url_line else None
             else:
                 print(f"Tailscale Funnel not started: {r.stderr.strip()[:120]}")
-                print("  → See run.py comment to enable Funnel in Tailscale admin.")
         except FileNotFoundError:
-            print("tailscale not found — public URL not available")
+            pass  # tailscale not installed, try ngrok below
         except Exception as e:
             print(f"Tailscale Funnel error: {e}")
+
+        if not public_url:
+            try:
+                from pyngrok import ngrok
+                authtoken = os.getenv("NGROK_AUTHTOKEN")
+                if authtoken:
+                    ngrok.set_auth_token(authtoken)
+                tunnel = ngrok.connect(8000, "http")
+                public_url = tunnel.public_url
+            except ImportError:
+                pass  # pyngrok not installed
+            except Exception as e:
+                print(f"ngrok error: {e}")
+
+        if public_url:
+            print(f"Web UI (public) → {public_url}")
+        else:
+            print("Web UI (public) → not available (install tailscale or set NGROK_AUTHTOKEN)")
         # ─────────────────────────────────────────────────────────────────
 
         start()  # blocks (sensor loop)

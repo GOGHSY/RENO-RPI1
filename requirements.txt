@@ -9,3 +9,4 @@ uvicorn[standard]
 Jinja2
 requests
 paho-mqtt
+pyngrok
