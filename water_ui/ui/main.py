@@ -9,6 +9,7 @@ from pathlib import Path
 
 import requests
 import zenoh
+import shared_state
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from fastapi.templating import Jinja2Templates
@@ -211,6 +212,23 @@ def pump_start():
 def pump_stop():
     _publish('{"cmd":"pump_stop"}')
     return {"ok": True}
+
+
+# ── Turbidity threshold ────────────────────────────────────────────────────
+
+@app.get("/api/threshold")
+def get_threshold():
+    return {"value": shared_state.get_threshold()}
+
+
+@app.post("/api/threshold")
+async def set_threshold(request: Request):
+    body = await request.json()
+    try:
+        shared_state.set_threshold(float(body["value"]))
+    except (KeyError, TypeError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"value": shared_state.get_threshold()}
 
 
 # ── Debug ──────────────────────────────────────────────────────────────────
