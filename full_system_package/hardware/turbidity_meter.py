@@ -41,9 +41,10 @@ class TurbiditySensor:
         """
         try:
             result = self.client.read_holding_registers(
-                address=self.register,
-                count=1,
-                slave=self.unit_id
+            address=self.register,
+            count=1,
+            unit=self.unit_id
+)
             )
             if result.isError():
                 raise ModbusException(f"Error reading register {self.register}")
