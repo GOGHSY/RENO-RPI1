@@ -1,5 +1,6 @@
 import time
 import threading
+from pymodbus.client import ModbusSerialClient
 from .hardware.flow_sensor import FlowSensor
 from .hardware.solenoid import Solenoid
 import RPi.GPIO as GPIO
@@ -12,12 +13,23 @@ from .services.receiver import start_receiver
 def start():
     GPIO.setmode(GPIO.BCM)
 
+    # Single shared Modbus RTU client — opens /dev/ttyUSB0 once for both sensors
+    modbus_client = ModbusSerialClient(
+        port=config.MODBUS_PORT,
+        baudrate=config.MODBUS_BAUDRATE,
+        parity='N',
+        stopbits=1,
+        bytesize=8,
+    )
+    if not modbus_client.connect():
+        print(f"Warning: could not connect to Modbus RS-485 bus on {config.MODBUS_PORT}")
+
     valve_main = Solenoid(config.SOLENOID_1_PIN)
     valve_aux  = Solenoid(config.SOLENOID_2_PIN)
-    meter      = FlowSensor(port='/dev/ttyUSB0', slave_id=1)
+    meter      = FlowSensor(client=modbus_client, slave_id=config.FLOW_SLAVE_ID)
+    turbidity_sensor = TurbiditySensor(client=modbus_client, unit_id=config.TURBIDITY_SLAVE_ID)
     logger     = VictoriaMetricsLogger()
     brain      = ControlManager()
-    turbidity_sensor = TurbiditySensor()
 
     # Start MQTT receiver in background thread
     receiver_thread = threading.Thread(target=start_receiver, daemon=True)
@@ -55,4 +67,5 @@ def start():
     except KeyboardInterrupt:
         print("Stopping...")
     finally:
+        modbus_client.close()
         GPIO.cleanup()
