@@ -1,44 +1,60 @@
 import time
-import board
-import busio
-import adafruit_ads1x15.ads1115 as ADS
-from adafruit_ads1x15.analog_in import AnalogIn
-
+from pymodbus.client import ModbusTcpClient
+from pymodbus.exceptions import ModbusException
 
 class TurbiditySensor:
-    def __init__(self, pin=0):
-        # Initialize I2C and ADS1115
-        self.i2c = busio.I2C(board.SCL, board.SDA)
-        self.ads = ADS.ADS1115(self.i2c)
+    def __init__(self, host='192.168.1.100', port=502, unit_id=1, register=0):
+        """
+        Initialize Modbus TCP turbidity sensor.
 
-        # Create analog channel
-        self.chan = AnalogIn(self.ads, pin)
+        Args:
+            host: Modbus device IP address
+            port: Modbus TCP port (default 502)
+            unit_id: Slave/unit ID of the device
+            register: Holding register address for turbidity data
+        """
+        self.host = host
+        self.port = port
+        self.unit_id = unit_id
+        self.register = register
+        self.client = ModbusTcpClient(host=self.host, port=self.port)
+        self._connect()
+
+    def _connect(self):
+        """Establish Modbus TCP connection."""
+        if not self.client.connect():
+            raise ConnectionError(f"Failed to connect to Modbus device at {self.host}:{self.port}")
 
     def read_voltage(self):
-        """Read voltage from sensor"""
-        return self.chan.voltage
+        """
+        Read voltage from sensor via Modbus.
+        Assumes the register holds a raw ADC value (0–32767 → 0–5V).
+        Adjust scaling to match your device's register map.
+        """
+        try:
+            result = self.client.read_holding_registers(
+                address=self.register,
+                count=1,
+                slave=self.unit_id
+            )
+            if result.isError():
+                raise ModbusException(f"Error reading register {self.register}")
 
-    def calculate_ntu(self, voltage):
-        """Convert voltage to NTU"""
-        ntu = -1120.4 * (voltage ** 2) + 5742.3 * voltage - 4352.9
+            raw = result.registers[0]
+            voltage = (raw / 32767.0) * 5.0  # Scale to 0–5V; adjust per your device spec
+            return voltage
 
-        # Clamp values
-        if ntu < 0:
-            ntu = 0
-        if voltage > 4.2:
-            ntu = 0
+        except ModbusException as e:
+            print(f"Modbus error: {e}")
+            return None
 
-        return ntu
+    def close(self):
+        """Close the Modbus connection."""
+        self.client.close()
 
-    def read(self):
-        """Return both voltage and turbidity"""
-        voltage = self.read_voltage()
-        ntu = self.calculate_ntu(voltage)
-        return voltage, ntu
+    def __enter__(self):
+        return self
 
-    def print_reading(self):
-        """Print formatted output"""
-        voltage, ntu = self.read()
-        print(f"Voltage: {round(voltage, 3)} V")
-        print(f"Estimated Turbidity: {round(ntu, 2)} NTU")
-        print("-------------------------")
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
