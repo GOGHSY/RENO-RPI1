@@ -17,11 +17,21 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 # VictoriaMetrics endpoint
 VM_URL = "http://localhost:8428/api/v1/query"
 
-# Zenoh Config
-config = zenoh.Config()
-# Ensure your Zenoh router or endpoints are configured correctly here
-z = zenoh.open(config)
-pub = z.declare_publisher("water/control")
+# Zenoh — initialized lazily so the web server starts even if Zenoh is unavailable
+_zenoh_session = None
+_zenoh_pub = None
+
+def _get_publisher():
+    global _zenoh_session, _zenoh_pub
+    if _zenoh_pub is not None:
+        return _zenoh_pub
+    try:
+        _zenoh_session = zenoh.open(zenoh.Config())
+        _zenoh_pub = _zenoh_session.declare_publisher("water/control")
+    except Exception as e:
+        print(f"Zenoh unavailable: {e}")
+        _zenoh_pub = None
+    return _zenoh_pub
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -61,24 +71,36 @@ def get_vm_metric(metric_key: str):
 # Zenoh POST Endpoints
 @app.post("/valve/open")
 def valve_open():
+    pub = _get_publisher()
+    if pub is None:
+        raise HTTPException(status_code=503, detail="Zenoh unavailable")
     pub.put('{"cmd":"valve_open"}')
     return {"ok": True}
 
 
 @app.post("/valve/close")
 def valve_close():
+    pub = _get_publisher()
+    if pub is None:
+        raise HTTPException(status_code=503, detail="Zenoh unavailable")
     pub.put('{"cmd":"valve_close"}')
     return {"ok": True}
 
 
 @app.post("/pump/start")
 def pump_start():
+    pub = _get_publisher()
+    if pub is None:
+        raise HTTPException(status_code=503, detail="Zenoh unavailable")
     pub.put('{"cmd":"pump_start"}')
     return {"ok": True}
 
 
 @app.post("/pump/stop")
 def pump_stop():
+    pub = _get_publisher()
+    if pub is None:
+        raise HTTPException(status_code=503, detail="Zenoh unavailable")
     pub.put('{"cmd":"pump_stop"}')
     return {"ok": True}
 

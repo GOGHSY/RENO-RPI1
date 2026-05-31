@@ -23,7 +23,7 @@ class TurbiditySensor:
     def _connect(self):
         """Establish Modbus TCP connection."""
         if not self.client.connect():
-            raise ConnectionError(f"Failed to connect to Modbus device at {self.host}:{self.port}")
+            print(f"Warning: could not connect to turbidity sensor at {self.host}:{self.port}")
 
     def read_voltage(self):
         """
@@ -46,6 +46,7 @@ class TurbiditySensor:
 
         except ModbusException as e:
             print(f"Modbus error: {e}")
+            self._connect()  # attempt reconnect next cycle
             return None
 
     def close(self):
