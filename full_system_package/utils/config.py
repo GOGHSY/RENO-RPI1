@@ -4,6 +4,12 @@ FLOW_SENSOR_PIN = 21
 SOLENOID_1_PIN = 18  # Main Valve
 SOLENOID_2_PIN = 17  # Secondary/Diverter Valve
 
+# Shared Modbus RS-485 bus (both flow sensor and turbidity sensor on same USB adapter)
+MODBUS_PORT = '/dev/ttyUSB0'
+MODBUS_BAUDRATE = 9600
+FLOW_SLAVE_ID = 1
+TURBIDITY_SLAVE_ID = 2
+
 # InfluxDB 2.x Settings
 INFLUX_URL = "http://localhost:8086"
 INFLUX_TOKEN = "C53KoqRvDb1ZfBLq3WEYCSck5AIPZv5Kiac9G66Pi1P5gDj5PWjGCp2VTNf5HBPGCPgPdwU7JVH9rCK0FRc6bA=="
