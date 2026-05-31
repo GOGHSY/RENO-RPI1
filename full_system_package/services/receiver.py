@@ -1,10 +1,9 @@
 import json
-import sys
+import time
 
 import zenoh
 
-sys.path.append("/home/suprabha/full_system")
-from full_system_package.database.victoria_logger import VictoriaMetricsLogger
+from ..database.victoria_logger import VictoriaMetricsLogger
 
 # Zenoh key (same as MQTT topic)
 ZENOH_KEY = "reno/water/treatment/010"
@@ -17,7 +16,7 @@ influx = VictoriaMetricsLogger()
 
 def listener(sample):
     try:
-        payload = sample.payload.decode()
+        payload = bytes(sample.payload).decode("utf-8")
         data = json.loads(payload)
 
         print("\n--- Sensor Data Received ---")
@@ -42,6 +41,9 @@ def start_receiver():
     print(f"Subscribed to {ZENOH_KEY}")
     sub = z.declare_subscriber(ZENOH_KEY, listener)
     print("Listening for water treatment data...")
-    input("Press Enter to exit...\n")
-    sub.undeclare()
-    z.close()
+    try:
+        while True:
+            time.sleep(1)
+    finally:
+        sub.undeclare()
+        z.close()

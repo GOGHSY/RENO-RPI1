@@ -1,452 +1,658 @@
 <!doctype html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>SEM 129 Dashboard</title>
-        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-        <style>
-            :root {
-                --bg: #f8fafc;
-                --card: #ffffff;
-                --text: #1e293b;
-                --muted: #64748b;
-                --accent: #2563eb;
-                --border: #e2e8f0;
-                --success: #10b981;
-                --danger: #ef4444;
-            }
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
-            body {
-                background: var(--bg);
-                color: var(--text);
-                font-family: sans-serif;
-            }
-            .container {
-                max-width: 1400px;
-                margin: 0 auto;
-                padding: 1.5rem;
-            }
-            header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 1.5rem;
-                border-bottom: 1px solid var(--border);
-                padding-bottom: 1rem;
-            }
-            .nav-controls {
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                background: #fff;
-                padding: 8px 15px;
-                border: 1px solid var(--border);
-                border-radius: 8px;
-            }
-            .grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-                gap: 1.25rem;
-            }
-            .card {
-                background: var(--card);
-                border: 1px solid var(--border);
-                border-radius: 10px;
-                padding: 1.25rem;
-                display: flex;
-                flex-direction: column;
-            }
-            .card-title {
-                font-size: 0.75rem;
-                font-weight: 700;
-                color: var(--muted);
-                text-transform: uppercase;
-                margin-bottom: 1rem;
-            }
-            .control-tray {
-                background: #f1f5f9;
-                padding: 12px;
-                border-radius: 8px;
-                margin-top: auto;
-                border: 1px solid var(--border);
-            }
-            .logic-row,
-            .switch-row {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 5px;
-            }
-            .logic-status {
-                font-size: 0.65rem;
-                font-weight: 800;
-                padding: 2px 6px;
-                border-radius: 4px;
-            }
-            .status-active {
-                background: #dcfce7;
-                color: #166534;
-            }
-            .status-inactive {
-                background: #fee2e2;
-                color: #991b1b;
-            }
-            .btn {
-                padding: 6px 12px;
-                border-radius: 5px;
-                border: 1px solid var(--border);
-                cursor: pointer;
-                font-weight: 600;
-                font-size: 0.8rem;
-                transition: 0.2s;
-            }
-            .btn:hover {
-                opacity: 0.8;
-            }
-            .val {
-                font-size: 1.4rem;
-                font-weight: 700;
-            }
-            .chart-box {
-                height: 100px;
-                margin-top: 10px;
-            }
-            #history-view {
-                display: none;
-            }
-            table {
-                width: 100%;
-                border-collapse: collapse;
-                margin-top: 1rem;
-                background: #fff;
-            }
-            th,
-            td {
-                text-align: left;
-                padding: 12px;
-                border-bottom: 1px solid var(--border);
-                font-size: 0.85rem;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <header>
-                <div>
-                    <h1 id="view-title" style="font-size: 2rem">
-                        Water treatment system, SEM 129
-                    </h1>
-                </div>
-                <div class="nav-controls">
-                    <button class="btn" onclick="toggleView()" id="view-toggle">
-                        View History Data
-                    </button>
-                    <button
-                        class="btn"
-                        style="
-                            background: var(--accent);
-                            color: white;
-                            border: none;
-                        "
-                        onclick="exportCSV()"
-                    >
-                        Download CSV
-                    </button>
-                </div>
-            </header>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SEM 129 — Water Treatment Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <style>
+    :root {
+      --bg:     #f0f4f8;
+      --card:   #ffffff;
+      --text:   #1e293b;
+      --muted:  #64748b;
+      --border: #e2e8f0;
+      --blue:   #2563eb;
+      --purple: #7c3aed;
+      --green:  #10b981;
+      --red:    #ef4444;
+      --amber:  #f59e0b;
+      --cyan:   #06b6d4;
+      --pink:   #ec4899;
+      --lime:   #84cc16;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; font-size: 14px; }
 
-            <div id="live-view" class="grid">
-                <div class="card">
-                    <div class="card-title">Main Intake Flow</div>
-                    <div class="val" id="flow-v">Loading...</div>
-                    <div class="chart-box"><canvas id="c-flow"></canvas></div>
-                </div>
+    /* ── Header ───────────────────────────────────────── */
+    header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: .7rem 1.25rem;
+      background: var(--card); border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    }
+    header h1 { font-size: 1rem; font-weight: 700; }
+    header h1 span { color: var(--blue); }
+    .live-dot {
+      display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+      background: var(--green); margin-right: 6px;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+    .view-tabs { display: flex; gap: 3px; background: var(--bg); padding: 3px; border-radius: 8px; border: 1px solid var(--border); }
+    .view-tabs button {
+      padding: 5px 14px; border-radius: 6px; border: none; cursor: pointer;
+      font-weight: 600; font-size: .8rem; background: transparent; color: var(--muted); transition: all .12s;
+    }
+    .view-tabs button.active { background: var(--card); color: var(--blue); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
 
-                <div class="card">
-                    <div class="card-title">Flocculation Stage 3</div>
-                    <div class="val" id="floc-ph">Loading...</div>
-                    <div class="chart-box"><canvas id="c-floc"></canvas></div>
-                </div>
+    /* ── Layout ───────────────────────────────────────── */
+    .container { max-width: 1600px; margin: 0 auto; padding: 1rem 1.25rem; }
+    .section { margin-bottom: 1.3rem; }
+    .section-hdr { display: flex; align-items: center; gap: 7px; margin-bottom: .6rem; }
+    .section-hdr h2 { font-size: .7rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .grid   { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: .85rem; }
+    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); gap: .85rem; }
 
-                <div class="card">
-                    <div class="card-title">Filtration Unit</div>
-                    <div>
-                        Turbidity: <span class="val" id="filt-ntu">0.00</span>
-                        <small>NTU</small>
-                    </div>
-                    <div class="chart-box"><canvas id="c-turb"></canvas></div>
-                    <div class="control-tray">
-                        <div class="logic-row">
-                            <span
-                                >Solenoid S4:
-                                <b id="s4-physical-state">CLOSED</b></span
-                            >
-                            <span
-                                id="trigger-source"
-                                class="logic-status status-inactive"
-                                >IDLE</span
-                            >
-                        </div>
-                        <div class="switch-row">
-                            <label style="font-size: 0.75rem; font-weight: 600"
-                                >Threshold:</label
-                            >
-                            <div>
-                                <input
-                                    type="number"
-                                    id="ntu-threshold"
-                                    value="5.0"
-                                    step="0.1"
-                                    style="width: 50px; padding: 2px"
-                                />
-                                <small>NTU</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+    /* ── Cards ────────────────────────────────────────── */
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: .95rem; }
+    .card-title { font-size: .67rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; margin-bottom: .65rem; }
+    .big-val { font-size: 2.1rem; font-weight: 800; line-height: 1; }
+    .unit { font-size: .75rem; color: var(--muted); margin-left: 3px; }
+    .spark { height: 52px; margin-top: .5rem; }
+    .mrow { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 0; }
+    .mlabel { font-size: .75rem; color: var(--muted); }
+    .mval { font-size: 1.05rem; font-weight: 700; }
+    .badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: .65rem; font-weight: 800; }
+    .on  { background: #dcfce7; color: #166534; }
+    .off { background: #fee2e2; color: #991b1b; }
+    .hdiv { height: 1px; background: var(--border); margin: .45rem 0; }
+    .pump-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; margin-top: .25rem; }
+    .pump-box { background: var(--bg); border-radius: 8px; padding: .65rem; text-align: center; }
+    .pump-name { font-size: .63rem; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: .15rem; }
+    .pump-val { font-size: 1.55rem; font-weight: 800; }
+    .valve-row { display: flex; gap: 1rem; margin-top: .45rem; padding-top: .45rem; border-top: 1px solid var(--border); }
+    .valve-item { display: flex; align-items: center; gap: 5px; font-size: .75rem; color: var(--muted); }
 
-                <div class="card">
-                    <div class="card-title">Final Effluent Tank</div>
-                    <div
-                        style="
-                            display: flex;
-                            justify-content: space-between;
-                            margin-bottom: 5px;
-                        "
-                    >
-                        <div>
-                            pH: <b id="eff-ph" style="color: #8b5cf6">0.00</b>
-                        </div>
-                        <div>
-                            EC: <b id="eff-ec" style="color: #10b981">0</b>
-                            <small>µS/cm</small>
-                        </div>
-                    </div>
-                    <div class="chart-box" style="height: 70px">
-                        <canvas id="c-eff-ph"></canvas>
-                    </div>
-                    <div class="chart-box" style="height: 70px">
-                        <canvas id="c-eff-ec"></canvas>
-                    </div>
-                    <div class="control-tray" style="background: #f8fafc">
-                        <div class="switch-row">
-                            <span style="font-size: 0.75rem; font-weight: 600"
-                                >Manual Controls:</span
-                            >
-                            <div style="display: flex; gap: 5px">
-                                <button
-                                    class="btn"
-                                    style="
-                                        background: var(--success);
-                                        color: white;
-                                    "
-                                    onclick="sendCommand('/pump/start')"
-                                >
-                                    PUMP ON
-                                </button>
-                                <button
-                                    class="btn"
-                                    style="
-                                        background: var(--danger);
-                                        color: white;
-                                    "
-                                    onclick="sendCommand('/pump/stop')"
-                                >
-                                    PUMP OFF
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+    /* ── Shared Controls ──────────────────────────────── */
+    .shared-controls {
+      display: flex; align-items: center; flex-wrap: wrap; gap: .45rem;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: .65rem 1rem; margin-bottom: .9rem;
+    }
+    .range-btns { display: flex; gap: 3px; }
+    .rbtn {
+      padding: 4px 11px; border-radius: 6px; border: 1px solid var(--border);
+      cursor: pointer; font-size: .78rem; font-weight: 600;
+      background: transparent; color: var(--muted); transition: all .12s;
+    }
+    .rbtn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+    .rbtn:hover:not(.active) { border-color: var(--blue); color: var(--blue); }
+    .ctrl-sep { width: 1px; height: 20px; background: var(--border); }
+    .dt-label { font-size: .75rem; color: var(--muted); }
+    .dt-input {
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 4px 7px; font-size: .78rem; background: var(--bg); color: var(--text);
+    }
+    .btn-apply {
+      padding: 4px 11px; border-radius: 6px; border: 1px solid var(--blue);
+      cursor: pointer; font-size: .78rem; font-weight: 600;
+      background: transparent; color: var(--blue); transition: .12s;
+    }
+    .btn-apply:hover { background: var(--blue); color: #fff; }
+    .btn-dl {
+      margin-left: auto; padding: 5px 13px; border-radius: 6px; border: none;
+      cursor: pointer; font-size: .78rem; font-weight: 700;
+      background: var(--blue); color: #fff; transition: .12s;
+    }
+    .btn-dl:hover { opacity: .85; }
 
-            <div id="history-view" class="card">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Time</th>
-                            <th>Flow</th>
-                            <th>Floc pH</th>
-                            <th>NTU</th>
-                            <th>Eff pH</th>
-                            <th>EC</th>
-                        </tr>
-                    </thead>
-                    <tbody id="table-body"></tbody>
-                </table>
-            </div>
+    /* ── History charts ───────────────────────────────── */
+    .hcard { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: .85rem; }
+    .hcard .card-title { margin-bottom: .35rem; }
+    .hchart-box { height: 185px; position: relative; }
+
+    /* ── Table view ───────────────────────────────────── */
+    .tbl-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: .6rem; flex-wrap: wrap; gap: .4rem;
+    }
+    .tbl-info { font-size: .8rem; color: var(--muted); }
+    .tbl-pagination { display: flex; align-items: center; gap: .4rem; }
+    .tbl-page-label { font-size: .78rem; color: var(--muted); min-width: 80px; text-align: center; }
+
+    .tbl-scroll {
+      overflow-x: auto; overflow-y: auto;
+      max-height: 68vh;
+      border: 1px solid var(--border); border-radius: 10px;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+    thead th {
+      background: var(--bg);
+      padding: 7px 10px;
+      font-size: .63rem; font-weight: 700; text-transform: uppercase;
+      color: var(--muted); letter-spacing: .05em;
+      border-bottom: 2px solid var(--border);
+      position: sticky; top: 0; z-index: 2;
+      white-space: nowrap; text-align: right;
+    }
+    thead th:first-child { text-align: left; min-width: 160px; }
+    tbody td {
+      padding: 5px 10px; border-bottom: 1px solid var(--border);
+      text-align: right; white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+    tbody td:first-child { text-align: left; color: var(--muted); font-size: .75rem; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: #f8fafc; }
+    .tbl-null { color: #cbd5e1; }
+
+    /* RPi1 / RPi2 column group colours */
+    .col-rpi1 { color: var(--blue) !important; }
+    .col-rpi2 { color: var(--purple) !important; }
+
+    /* ── Threshold control ────────────────────────────── */
+    .thresh-row { display:flex; align-items:center; gap:.4rem; margin:.5rem 0 .3rem; flex-wrap:wrap; }
+    .thresh-input {
+      width:68px; border:1px solid var(--border); border-radius:5px;
+      padding:3px 6px; font-size:.82rem; background:var(--bg); color:var(--text);
+    }
+    .btn-thresh {
+      padding:3px 10px; border-radius:5px; border:1px solid var(--amber);
+      cursor:pointer; font-size:.75rem; font-weight:600;
+      background:transparent; color:var(--amber); transition:.12s;
+    }
+    .btn-thresh:hover { background:var(--amber); color:#fff; }
+    .thresh-msg { font-size:.68rem; color:var(--green); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div style="display:flex;align-items:center;gap:.5rem">
+    <span class="live-dot" id="live-dot"></span>
+    <h1>Water Treatment System — <span>SEM 129</span></h1>
+  </div>
+  <div class="view-tabs">
+    <button id="btn-live"    class="active" onclick="setView('live')">Live</button>
+    <button id="btn-history"               onclick="setView('history')">History</button>
+    <button id="btn-table"                 onclick="setView('table')">Table</button>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- ── Shared time-range controls (History + Table) ── -->
+  <div id="shared-controls" class="shared-controls" style="display:none">
+    <div class="range-btns">
+      <button class="rbtn" onclick="setRange(1800,this)">30 m</button>
+      <button class="rbtn active" onclick="setRange(3600,this)">1 h</button>
+      <button class="rbtn" onclick="setRange(21600,this)">6 h</button>
+      <button class="rbtn" onclick="setRange(86400,this)">24 h</button>
+      <button class="rbtn" onclick="setRange(604800,this)">7 d</button>
+    </div>
+    <div class="ctrl-sep"></div>
+    <span class="dt-label">From</span>
+    <input class="dt-input" type="datetime-local" id="dt-from" />
+    <span class="dt-label">To</span>
+    <input class="dt-input" type="datetime-local" id="dt-to" />
+    <button class="btn-apply" onclick="applyCustom()">Apply</button>
+    <button class="btn-dl" onclick="downloadCSV()">↓ Download CSV</button>
+  </div>
+
+
+  <!-- ══════════════ LIVE VIEW ══════════════ -->
+  <div id="live-view">
+
+    <div class="section">
+      <div class="section-hdr">
+        <div class="dot" style="background:var(--blue)"></div>
+        <h2>RPi1 — Filtration System</h2>
+      </div>
+      <div class="grid">
+
+        <div class="card">
+          <div class="card-title">Flow Rate</div>
+          <div><span class="big-val" id="l-flow">—</span><span class="unit">L/min</span></div>
+          <div class="spark"><canvas id="cs-flow"></canvas></div>
         </div>
 
-        <script>
-            let archive = [];
+        <div class="card">
+          <div class="card-title">Turbidity</div>
+          <div><span class="big-val" id="l-turb">—</span><span class="unit">NTU</span></div>
+          <div class="spark"><canvas id="cs-turb"></canvas></div>
+          <div class="thresh-row">
+            <span class="mlabel">Threshold</span>
+            <input class="thresh-input" type="number" id="turb-thresh" min="0" step="0.1" value="10" />
+            <span class="unit">NTU</span>
+            <button class="btn-thresh" onclick="applyThreshold()">Set</button>
+            <span class="thresh-msg" id="thresh-msg"></span>
+          </div>
+          <div class="valve-row">
+            <div class="valve-item">S1 Valve: <span id="v1-badge" class="badge off">—</span></div>
+            <div class="valve-item">S2 Valve: <span id="v2-badge" class="badge off">—</span></div>
+          </div>
+        </div>
 
-            // Chart Helper
-            function mkChart(id, color) {
-                return new Chart(document.getElementById(id), {
-                    type: "line",
-                    data: {
-                        labels: Array(20).fill(""),
-                        datasets: [
-                            {
-                                borderColor: color,
-                                data: Array(20).fill(null),
-                                borderWidth: 2,
-                                pointRadius: 0,
-                                tension: 0.3,
-                                fill: false,
-                            },
-                        ],
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { display: false } },
-                        scales: {
-                            x: { display: false },
-                            y: { beginAtZero: false },
-                        },
-                        animation: false,
-                    },
-                });
-            }
+      </div>
+    </div>
 
-            const charts = {
-                flow: mkChart("c-flow", "#2563eb"),
-                floc: mkChart("c-floc", "#10b981"),
-                turb: mkChart("c-turb", "#ef4444"),
-                effPh: mkChart("c-eff-ph", "#8b5cf6"),
-                effEc: mkChart("c-eff-ec", "#10b981"),
-            };
+    <div class="section">
+      <div class="section-hdr">
+        <div class="dot" style="background:var(--purple)"></div>
+        <h2>RPi2 — Chemical Treatment</h2>
+      </div>
+      <div class="grid">
 
-            // Call FastAPI Metrics Bridge
-            async function getMetric(key) {
-                try {
-                    const response = await fetch(`/api/metrics/${key}`);
-                    const data = await response.json();
-                    return data.value || 0;
-                } catch (err) {
-                    return 0;
-                }
-            }
+        <div class="card">
+          <div class="card-title">pH Sensors</div>
+          <div class="mrow"><span class="mlabel">pH1 — Pre Rapid Mix</span><span class="mval" id="l-ph1" style="color:var(--blue)">—</span></div>
+          <div class="mrow"><span class="mlabel">pH2 — Post Floc</span><span class="mval" id="l-ph2" style="color:var(--green)">—</span></div>
+          <div class="mrow"><span class="mlabel">pH3 — Post Sed</span><span class="mval" id="l-ph3" style="color:var(--purple)">—</span></div>
+          <div class="spark"><canvas id="cs-ph"></canvas></div>
+        </div>
 
-            // Call FastAPI Zenoh Publishers
-            async function sendCommand(path) {
-                try {
-                    const res = await fetch(path, { method: "POST" });
-                    const status = await res.json();
-                    console.log("Command sent:", path, status);
-                } catch (e) {
-                    console.error("Zenoh Error:", e);
-                }
-            }
+        <div class="card">
+          <div class="card-title">Temperature (RTD)</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.25rem .5rem">
+            <div><div class="mlabel">RTD1 Pre Mix</div><span class="mval" id="l-rtd1">—</span><span class="unit">°C</span></div>
+            <div><div class="mlabel">RTD2 Pre Mix</div><span class="mval" id="l-rtd2">—</span><span class="unit">°C</span></div>
+            <div><div class="mlabel">RTD3 Post Floc</div><span class="mval" id="l-rtd3">—</span><span class="unit">°C</span></div>
+            <div><div class="mlabel">RTD4 Effluent</div><span class="mval" id="l-rtd4">—</span><span class="unit">°C</span></div>
+          </div>
+          <div class="spark"><canvas id="cs-rtd"></canvas></div>
+        </div>
 
-            async function refreshData() {
-                const [vFlow, vFlocPh, vNtu, vEffPh, vEc] = await Promise.all([
-                    getMetric("flow"),
-                    getMetric("flocPh"),
-                    getMetric("ntu"),
-                    getMetric("effPh"),
-                    getMetric("ec"),
-                ]);
+        <div class="card">
+          <div class="card-title">ORP &amp; Conductivity</div>
+          <div class="mrow"><span class="mlabel">ORP — Pre Rapid Mix</span><span class="mval" id="l-orp" style="color:var(--amber)">—<span class="unit"> mV</span></span></div>
+          <div class="spark" style="height:44px"><canvas id="cs-orp"></canvas></div>
+          <div class="hdiv"></div>
+          <div class="mrow"><span class="mlabel">EC — Post Lime</span><span class="mval" id="l-ec" style="color:var(--cyan)">—<span class="unit"> µS/cm</span></span></div>
+          <div class="spark" style="height:44px"><canvas id="cs-ec"></canvas></div>
+        </div>
 
-                const d = {
-                    time: new Date().toLocaleTimeString("en-GB"),
-                    flow: vFlow.toFixed(1),
-                    flocPh: vFlocPh.toFixed(2),
-                    ntu: vNtu.toFixed(2),
-                    effPh: vEffPh.toFixed(2),
-                    ec: vEc.toFixed(0),
-                };
+        <div class="card">
+          <div class="card-title">Dosing Pumps</div>
+          <div class="pump-grid">
+            <div class="pump-box">
+              <div class="pump-name">Alum Pump 1</div>
+              <div class="pump-val" id="l-p1">—</div>
+              <span id="l-p1b" class="badge off" style="margin-top:4px">—</span>
+            </div>
+            <div class="pump-box">
+              <div class="pump-name">Lime Pump 2</div>
+              <div class="pump-val" id="l-p2">—</div>
+              <span id="l-p2b" class="badge off" style="margin-top:4px">—</span>
+            </div>
+          </div>
+        </div>
 
-                // Update UI Numbers
-                document.getElementById("flow-v").innerText = d.flow + " L/m";
-                document.getElementById("floc-ph").innerText = d.flocPh + " pH";
-                document.getElementById("filt-ntu").innerText = d.ntu;
-                document.getElementById("eff-ph").innerText = d.effPh;
-                document.getElementById("eff-ec").innerText = d.ec;
+      </div>
+    </div>
+  </div><!-- end #live-view -->
 
-                // Threshold logic for UI feedback
-                const thresh = parseFloat(
-                    document.getElementById("ntu-threshold").value,
-                );
-                const s4State = document.getElementById("s4-physical-state");
-                const s4Tag = document.getElementById("trigger-source");
-                if (parseFloat(d.ntu) > thresh) {
-                    s4State.innerText = "OPEN";
-                    s4State.style.color = "var(--danger)";
-                    s4Tag.className = "logic-status status-active";
-                    s4Tag.innerText = "THRESHOLD TRIGGER";
-                } else {
-                    s4State.innerText = "CLOSED";
-                    s4State.style.color = "var(--text)";
-                    s4Tag.className = "logic-status status-inactive";
-                    s4Tag.innerText = "STANDBY";
-                }
 
-                // Update Charts
-                const pairs = [
-                    [charts.flow, d.flow],
-                    [charts.floc, d.flocPh],
-                    [charts.turb, d.ntu],
-                    [charts.effPh, d.effPh],
-                    [charts.effEc, d.ec],
-                ];
-                pairs.forEach((p) => {
-                    p[0].data.datasets[0].data.push(p[1]);
-                    p[0].data.datasets[0].data.shift();
-                    p[0].update("none");
-                });
+  <!-- ══════════════ HISTORY VIEW ══════════════ -->
+  <div id="history-view" style="display:none">
 
-                archive.push(d);
-                if (archive.length > 100) archive.shift();
-            }
+    <div class="section">
+      <div class="section-hdr"><div class="dot" style="background:var(--blue)"></div><h2>RPi1 — Filtration System</h2></div>
+      <div class="grid-2">
+        <div class="hcard"><div class="card-title">Flow Rate (L/min)</div><div class="hchart-box"><canvas id="hc-flow"></canvas></div></div>
+        <div class="hcard"><div class="card-title">Turbidity (NTU)</div><div class="hchart-box"><canvas id="hc-turb"></canvas></div></div>
+      </div>
+    </div>
 
-            setInterval(refreshData, 2000);
-            refreshData();
+    <div class="section">
+      <div class="section-hdr"><div class="dot" style="background:var(--purple)"></div><h2>RPi2 — Chemical Treatment</h2></div>
+      <div class="grid-2">
+        <div class="hcard"><div class="card-title">pH — Pre Mix / Post Floc / Post Sed</div><div class="hchart-box"><canvas id="hc-ph"></canvas></div></div>
+        <div class="hcard"><div class="card-title">Temperature °C (RTD 1–4)</div><div class="hchart-box"><canvas id="hc-rtd"></canvas></div></div>
+        <div class="hcard"><div class="card-title">ORP (mV)</div><div class="hchart-box"><canvas id="hc-orp"></canvas></div></div>
+        <div class="hcard"><div class="card-title">Conductivity — EC (µS/cm)</div><div class="hchart-box"><canvas id="hc-ec"></canvas></div></div>
+        <div class="hcard" style="grid-column:1/-1"><div class="card-title">Dosing Pumps — Alum &amp; Lime (duty cycle)</div><div class="hchart-box"><canvas id="hc-pumps"></canvas></div></div>
+      </div>
+    </div>
 
-            function toggleView() {
-                const live = document.getElementById("live-view");
-                const hist = document.getElementById("history-view");
-                const isHist = hist.style.display === "block";
-                live.style.display = isHist ? "grid" : "none";
-                hist.style.display = isHist ? "none" : "block";
-                document.getElementById("view-toggle").innerText = isHist
-                    ? "View History Data"
-                    : "Back to Dash";
+  </div><!-- end #history-view -->
 
-                if (!isHist) {
-                    document.getElementById("table-body").innerHTML = archive
-                        .slice(-20)
-                        .reverse()
-                        .map(
-                            (r) =>
-                                `<tr><td>${r.time}</td><td>${r.flow}</td><td>${r.flocPh}</td><td>${r.ntu}</td><td>${r.effPh}</td><td>${r.ec}</td></tr>`,
-                        )
-                        .join("");
-                }
-            }
 
-            function exportCSV() {
-                let csv =
-                    "Time,Flow,FlocPh,NTU,EffPh,EC\n" +
-                    archive
-                        .map(
-                            (r) =>
-                                `${r.time},${r.flow},${r.flocPh},${r.ntu},${r.effPh},${r.ec}`,
-                        )
-                        .join("\n");
-                const blob = new Blob([csv], { type: "text/csv" });
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.setAttribute("href", url);
-                a.setAttribute("download", "wtp_data.csv");
-                a.click();
-            }
-        </script>
-    </body>
+  <!-- ══════════════ TABLE VIEW ══════════════ -->
+  <div id="table-view" style="display:none">
+    <div class="card">
+      <div class="tbl-header">
+        <div class="tbl-info" id="tbl-info">—</div>
+        <div class="tbl-pagination">
+          <button class="rbtn" id="tbl-prev" onclick="tblPage(-1)">← Prev</button>
+          <span class="tbl-page-label" id="tbl-page-lbl">—</span>
+          <button class="rbtn" id="tbl-next" onclick="tblPage(1)">Next →</button>
+        </div>
+      </div>
+      <div class="tbl-scroll">
+        <table>
+          <thead><tr id="tbl-head"></tr></thead>
+          <tbody id="tbl-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div><!-- end #table-view -->
+
+</div><!-- end .container -->
+
+<script>
+// ── Utils ─────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const fmt = (v, d=2) => v == null ? null : parseFloat(v).toFixed(d);
+function localDT(date) {
+  const p = n => String(n).padStart(2,"0");
+  return `${date.getFullYear()}-${p(date.getMonth()+1)}-${p(date.getDate())}T${p(date.getHours())}:${p(date.getMinutes())}`;
+}
+
+// ── View toggle ───────────────────────────────────────────────────────────
+function setView(v) {
+  $("live-view").style.display     = v === "live"    ? "block" : "none";
+  $("history-view").style.display  = v === "history" ? "block" : "none";
+  $("table-view").style.display    = v === "table"   ? "block" : "none";
+  $("shared-controls").style.display = v !== "live"  ? "flex"  : "none";
+  $("live-dot").style.display      = v === "live"    ? "inline-block" : "none";
+  ["live","history","table"].forEach(n =>
+    $("btn-"+n).classList.toggle("active", n === v)
+  );
+  if (v === "history") loadHistory();
+  if (v === "table")   loadTable();
+}
+
+// ── Sparklines ────────────────────────────────────────────────────────────
+function mkSpark(id, datasets) {
+  return new Chart($(id), {
+    type: "line",
+    data: {
+      labels: Array(80).fill(""),
+      datasets: datasets.map(d => ({
+        borderColor: d.color, data: Array(80).fill(null),
+        borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false,
+      })),
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: { legend: { display: false } },
+      scales: { x: { display: false }, y: { display: false } },
+    },
+  });
+}
+const sparks = {
+  flow: mkSpark("cs-flow", [{color:"#2563eb"}]),
+  turb: mkSpark("cs-turb", [{color:"#ef4444"}]),
+  ph:   mkSpark("cs-ph",   [{color:"#2563eb"},{color:"#10b981"},{color:"#7c3aed"}]),
+  rtd:  mkSpark("cs-rtd",  [{color:"#f59e0b"},{color:"#06b6d4"},{color:"#ec4899"},{color:"#84cc16"}]),
+  orp:  mkSpark("cs-orp",  [{color:"#f59e0b"}]),
+  ec:   mkSpark("cs-ec",   [{color:"#06b6d4"}]),
+};
+function push(chart, ...vals) {
+  vals.forEach((v, i) => {
+    const ds = chart.data.datasets[i]; if (!ds) return;
+    ds.data.push(v == null ? null : parseFloat(v)); ds.data.shift();
+  });
+  chart.update("none");
+}
+
+// ── Live refresh ──────────────────────────────────────────────────────────
+let liveOk = false;
+async function refreshLive() {
+  let d;
+  try {
+    const r = await fetch("/api/live"); d = await r.json();
+    if (!liveOk) { $("live-dot").style.background="#10b981"; liveOk=true; }
+  } catch (e) { $("live-dot").style.background="#ef4444"; liveOk=false; return; }
+
+  $("l-flow").textContent = fmt(d.flow_rate,1) ?? "—";
+  $("l-turb").textContent = fmt(d.turbidity,3) ?? "—";
+  push(sparks.flow, d.flow_rate);
+  push(sparks.turb, d.turbidity);
+
+  const v1 = d.valve1 != null && parseFloat(d.valve1) > 0.5;
+  const v2 = d.valve2 != null && parseFloat(d.valve2) > 0.5;
+  $("v1-badge").textContent=$("v1-badge").className="";
+  $("v1-badge").textContent = v1?"OPEN":"CLOSED"; $("v1-badge").className="badge "+(v1?"on":"off");
+  $("v2-badge").textContent = v2?"OPEN":"CLOSED"; $("v2-badge").className="badge "+(v2?"on":"off");
+
+  $("l-ph1").textContent = fmt(d.pH1) ?? "—";
+  $("l-ph2").textContent = fmt(d.pH2) ?? "—";
+  $("l-ph3").textContent = fmt(d.pH3) ?? "—";
+  push(sparks.ph, d.pH1, d.pH2, d.pH3);
+
+  $("l-rtd1").textContent = fmt(d.RTD1) ?? "—";
+  $("l-rtd2").textContent = fmt(d.RTD2) ?? "—";
+  $("l-rtd3").textContent = fmt(d.RTD3) ?? "—";
+  $("l-rtd4").textContent = fmt(d.RTD4) ?? "—";
+  push(sparks.rtd, d.RTD1, d.RTD2, d.RTD3, d.RTD4);
+
+  $("l-orp").childNodes[0].textContent = fmt(d.ORP,1) ?? "—";
+  $("l-ec").childNodes[0].textContent  = fmt(d.EC,1)  ?? "—";
+  push(sparks.orp, d.ORP);
+  push(sparks.ec,  d.EC);
+
+  function pumpBadge(valId, badgeId, val) {
+    const on = val != null && parseFloat(val) > 0;
+    $(valId).textContent  = val==null ? "—" : parseFloat(val).toFixed(0);
+    $(badgeId).textContent = on?"ON":"OFF"; $(badgeId).className="badge "+(on?"on":"off");
+  }
+  pumpBadge("l-p1","l-p1b",d.Pump1);
+  pumpBadge("l-p2","l-p2b",d.Pump2);
+}
+setInterval(refreshLive, 2000);
+refreshLive();
+
+// ── Time range state ──────────────────────────────────────────────────────
+let histStart=null, histEnd=null, activeRBtn=null;
+
+function setRange(seconds, btn) {
+  histEnd   = Math.floor(Date.now()/1000);
+  histStart = histEnd - seconds;
+  if (activeRBtn) activeRBtn.classList.remove("active");
+  if (btn) { btn.classList.add("active"); activeRBtn=btn; }
+  const v = $("history-view").style.display!=="none" ? "history"
+          : $("table-view").style.display!=="none"   ? "table" : null;
+  if (v==="history") loadHistory();
+  if (v==="table")   loadTable();
+}
+function applyCustom() {
+  const f=$("dt-from").value, t=$("dt-to").value; if (!f||!t) return;
+  histStart = Math.floor(new Date(f).getTime()/1000);
+  histEnd   = Math.floor(new Date(t).getTime()/1000);
+  if (activeRBtn) { activeRBtn.classList.remove("active"); activeRBtn=null; }
+  const v = $("history-view").style.display!=="none" ? "history" : "table";
+  if (v==="history") loadHistory(); else loadTable();
+}
+function downloadCSV() {
+  if (!histStart||!histEnd) { alert("Select a time range first."); return; }
+  window.location.href = `/api/download?start=${histStart}&end=${histEnd}`;
+}
+
+// ── History charts ────────────────────────────────────────────────────────
+const hCharts = {};
+function step(s,e) {
+  const d=e-s;
+  if(d<=3600) return "15s"; if(d<=21600) return "1m";
+  if(d<=86400) return "5m"; if(d<=604800) return "30m"; return "1h";
+}
+function timeUnit(s,e) {
+  const d=e-s;
+  if(d<=7200) return "minute"; if(d<=172800) return "hour"; return "day";
+}
+async function fetchRange(metric) {
+  if (!histStart||!histEnd) return [];
+  try {
+    const r=await fetch(`/api/range?metric=${metric}&start=${histStart}&end=${histEnd}&step=${step(histStart,histEnd)}`);
+    const j=await r.json();
+    return (j.values||[]).map(([ts,v])=>({x:ts,y:v}));
+  } catch(e){return [];}
+}
+function mkHChart(id, multi) {
+  if (hCharts[id]) { hCharts[id].destroy(); delete hCharts[id]; }
+  const el=$(id); if (!el) return null;
+  hCharts[id] = new Chart(el, {
+    type:"line",
+    data:{ datasets: multi.map(m=>({
+      label:m.label, borderColor:m.color, backgroundColor:m.color+"18",
+      data:[], borderWidth:2, pointRadius:0, tension:0.25, fill:multi.length===1,
+    }))},
+    options:{
+      responsive:true, maintainAspectRatio:false, animation:false,
+      interaction:{mode:"index",intersect:false},
+      plugins:{
+        legend:{display:multi.length>1, labels:{boxWidth:10,font:{size:11},padding:8}},
+        tooltip:{callbacks:{title:items=>new Date(items[0].parsed.x).toLocaleString()}},
+      },
+      scales:{
+        x:{type:"time",time:{unit:timeUnit(histStart,histEnd)},
+           ticks:{maxTicksLimit:8,font:{size:10},maxRotation:0},grid:{display:false}},
+        y:{ticks:{font:{size:10}},grid:{color:"#f1f5f9"}},
+      },
+    },
+  });
+  return hCharts[id];
+}
+async function loadHistory() {
+  if (!histStart||!histEnd) return;
+  const [flowD,turbD,ph1D,ph2D,ph3D,r1D,r2D,r3D,r4D,orpD,ecD,p1D,p2D] =
+    await Promise.all([
+      fetchRange("flow_rate"),fetchRange("turbidity"),
+      fetchRange("pH1"),fetchRange("pH2"),fetchRange("pH3"),
+      fetchRange("RTD1"),fetchRange("RTD2"),fetchRange("RTD3"),fetchRange("RTD4"),
+      fetchRange("ORP"),fetchRange("EC"),
+      fetchRange("Pump1"),fetchRange("Pump2"),
+    ]);
+  const c=(id,multi)=>mkHChart(id,multi);
+  let ch;
+  ch=c("hc-flow",[{label:"Flow Rate",color:"#2563eb"}]); ch.data.datasets[0].data=flowD; ch.update();
+  ch=c("hc-turb",[{label:"Turbidity",color:"#ef4444"}]); ch.data.datasets[0].data=turbD; ch.update();
+  ch=c("hc-ph",[{label:"pH1 Pre Mix",color:"#2563eb"},{label:"pH2 Post Floc",color:"#10b981"},{label:"pH3 Post Sed",color:"#7c3aed"}]);
+  [ph1D,ph2D,ph3D].forEach((d,i)=>{ch.data.datasets[i].data=d;}); ch.update();
+  ch=c("hc-rtd",[{label:"RTD1",color:"#f59e0b"},{label:"RTD2",color:"#06b6d4"},{label:"RTD3",color:"#ec4899"},{label:"RTD4",color:"#84cc16"}]);
+  [r1D,r2D,r3D,r4D].forEach((d,i)=>{ch.data.datasets[i].data=d;}); ch.update();
+  ch=c("hc-orp",[{label:"ORP",color:"#f59e0b"}]); ch.data.datasets[0].data=orpD; ch.update();
+  ch=c("hc-ec",[{label:"EC",color:"#06b6d4"}]); ch.data.datasets[0].data=ecD; ch.update();
+  ch=c("hc-pumps",[{label:"Alum Pump 1",color:"#2563eb"},{label:"Lime Pump 2",color:"#7c3aed"}]);
+  [p1D,p2D].forEach((d,i)=>{ch.data.datasets[i].data=d;}); ch.update();
+}
+
+// ── Table view ────────────────────────────────────────────────────────────
+const COL_LABELS = {
+  timestamp_utc: "Timestamp (UTC)",
+  flow_rate: "Flow (L/min)", turbidity: "Turbidity (NTU)",
+  valve1: "Valve S1", valve2: "Valve S2",
+  ORP: "ORP (mV)", pH1: "pH1", pH2: "pH2", pH3: "pH3",
+  RTD1: "RTD1 (°C)", RTD2: "RTD2 (°C)", RTD3: "RTD3 (°C)", RTD4: "RTD4 (°C)",
+  EC: "EC (µS/cm)", Pump1: "Pump 1", Pump2: "Pump 2",
+};
+const RPI1_COLS = new Set(["flow_rate","turbidity","valve1","valve2"]);
+const RPI2_COLS = new Set(["ORP","pH1","pH2","pH3","RTD1","RTD2","RTD3","RTD4","EC","Pump1","Pump2"]);
+const COL_DEC = { flow_rate:2, turbidity:3, ORP:1, pH1:3, pH2:3, pH3:3,
+                  RTD1:2, RTD2:2, RTD3:2, RTD4:2, EC:1, Pump1:0, Pump2:0,
+                  valve1:0, valve2:0 };
+
+let tblData = {columns:[], rows:[], total:0};
+let tblPage = 0;
+const PAGE = 100;
+
+async function loadTable() {
+  if (!histStart||!histEnd) return;
+  $("tbl-info").textContent = "Loading…";
+  $("tbl-body").innerHTML = "";
+  $("tbl-head").innerHTML = "";
+  try {
+    const r = await fetch(`/api/table?start=${histStart}&end=${histEnd}`);
+    tblData = await r.json();
+    tblPage = 0;
+    renderTable();
+  } catch(e) {
+    $("tbl-info").textContent = "Error loading data.";
+  }
+}
+
+function renderTable() {
+  const {columns, rows, total} = tblData;
+  const totalPages = Math.max(1, Math.ceil(total/PAGE));
+  const pageRows = rows.slice(tblPage*PAGE, (tblPage+1)*PAGE);
+
+  // Header
+  $("tbl-head").innerHTML = columns.map(c => {
+    const cls = RPI1_COLS.has(c)?"col-rpi1":RPI2_COLS.has(c)?"col-rpi2":"";
+    return `<th class="${cls}">${COL_LABELS[c]||c}</th>`;
+  }).join("");
+
+  // Body
+  $("tbl-body").innerHTML = pageRows.map(row =>
+    "<tr>" + columns.map((c,i) => {
+      const v = row[i];
+      if (i === 0) return `<td>${v}</td>`;
+      if (v == null) return `<td class="tbl-null">—</td>`;
+      const dec = COL_DEC[c] ?? 3;
+      return `<td>${parseFloat(v).toFixed(dec)}</td>`;
+    }).join("") + "</tr>"
+  ).join("");
+
+  // Pagination info
+  const from = tblPage*PAGE+1, to = Math.min((tblPage+1)*PAGE, total);
+  $("tbl-info").textContent = total===0 ? "No data for this range"
+    : `Showing ${from}–${to} of ${total} rows (newest first)`;
+  $("tbl-page-lbl").textContent = `${tblPage+1} / ${totalPages}`;
+  $("tbl-prev").disabled = tblPage===0;
+  $("tbl-next").disabled = tblPage>=totalPages-1;
+}
+
+function tblPage_(delta) {
+  const totalPages = Math.ceil(tblData.total/PAGE);
+  tblPage = Math.max(0, Math.min(tblPage+delta, totalPages-1));
+  renderTable();
+  document.querySelector(".tbl-scroll").scrollTop = 0;
+}
+
+// ── Turbidity threshold ───────────────────────────────────────────────────
+async function loadThreshold() {
+  try {
+    const r = await fetch("/api/threshold");
+    const j = await r.json();
+    $("turb-thresh").value = j.value;
+  } catch(e) {}
+}
+
+async function applyThreshold() {
+  const val = parseFloat($("turb-thresh").value);
+  if (isNaN(val) || val < 0) return;
+  try {
+    await fetch("/api/threshold", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({value: val}),
+    });
+    const msg = $("thresh-msg");
+    msg.textContent = "✓ Applied";
+    setTimeout(() => msg.textContent = "", 2000);
+  } catch(e) {
+    $("thresh-msg").textContent = "Error";
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+window.addEventListener("DOMContentLoaded", () => {
+  const now=new Date(), hr=new Date(now-3600_000);
+  $("dt-to").value   = localDT(now);
+  $("dt-from").value = localDT(hr);
+  setRange(3600, null);
+  activeRBtn = document.querySelector(".rbtn.active");
+  loadThreshold();
+});
+</script>
+
+<!-- fix onclick for renamed tblPage_ -->
+<script>
+function tblPage(delta) { tblPage_(delta); }
+</script>
+</body>
 </html>

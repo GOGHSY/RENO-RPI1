@@ -7,12 +7,17 @@ from ..utils import config
 
 class VictoriaMetricsLogger:
     def __init__(self):
-        self.url = f"{config.VM_URL}/api/v1/import"
+        self.url = f"{config.VM_URL}/write"
 
     def _send(self, line: str):
         for _ in range(3):  # retry 3 times
             try:
-                r = requests.post(self.url, data=line, timeout=2)
+                r = requests.post(
+                    self.url,
+                    data=line.encode("utf-8"),
+                    headers={"Content-Type": "text/plain"},
+                    timeout=2,
+                )
                 r.raise_for_status()
                 return
             except Exception as e:
@@ -23,14 +28,14 @@ class VictoriaMetricsLogger:
     # -------------------------
     def log(self, flow, v1_state, v2_state, turbidity, status):
         """Logs filtration system data"""
-
+        # Escape tag values per InfluxDB line protocol spec
+        status_tag = status.replace(",", "\\,").replace("=", "\\=").replace(" ", "\\ ")
         line = (
-            f"filtration,"
-            f"status={status} "
+            f"filtration,status={status_tag} "
             f"flow_rate={float(flow)},"
-            f"valve_1_active={1 if v1_state == 'OPEN' else 0},"
-            f"valve_2_active={1 if v2_state == 'OPEN' else 0},"
-            f"turbidity={float(turbidity)} "
+            f"valve_1_active={1 if v1_state else 0},"
+            f"valve_2_active={1 if v2_state else 0},"
+            f"turbidity={float(turbidity)}"
         )
 
         self._send(line)
