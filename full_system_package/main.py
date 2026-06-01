@@ -13,21 +13,30 @@ from .services.receiver import start_receiver
 def start():
     GPIO.setmode(GPIO.BCM)
 
-    # Single shared Modbus RTU client — opens /dev/ttyUSB0 once for both sensors
-    modbus_client = ModbusSerialClient(
-        port=config.MODBUS_PORT,
+    flow_client = ModbusSerialClient(
+        port=config.FLOW_PORT,
         baudrate=config.MODBUS_BAUDRATE,
         parity='N',
         stopbits=1,
         bytesize=8,
     )
-    if not modbus_client.connect():
-        print(f"Warning: could not connect to Modbus RS-485 bus on {config.MODBUS_PORT}")
+    if not flow_client.connect():
+        print(f"Warning: could not connect to flow meter on {config.FLOW_PORT}")
+
+    turbidity_client = ModbusSerialClient(
+        port=config.TURBIDITY_PORT,
+        baudrate=config.MODBUS_BAUDRATE,
+        parity='N',
+        stopbits=1,
+        bytesize=8,
+    )
+    if not turbidity_client.connect():
+        print(f"Warning: could not connect to turbidity meter on {config.TURBIDITY_PORT}")
 
     valve_main = Solenoid(config.SOLENOID_1_PIN)
     valve_aux  = Solenoid(config.SOLENOID_2_PIN)
-    meter      = FlowSensor(client=modbus_client, slave_id=config.FLOW_SLAVE_ID)
-    turbidity_sensor = TurbiditySensor(client=modbus_client, unit_id=config.TURBIDITY_SLAVE_ID)
+    meter      = FlowSensor(client=flow_client, slave_id=config.FLOW_SLAVE_ID)
+    turbidity_sensor = TurbiditySensor(client=turbidity_client, unit_id=config.TURBIDITY_SLAVE_ID)
     logger     = VictoriaMetricsLogger()
     brain      = ControlManager()
 
@@ -67,5 +76,6 @@ def start():
     except KeyboardInterrupt:
         print("Stopping...")
     finally:
-        modbus_client.close()
+        flow_client.close()
+        turbidity_client.close()
         GPIO.cleanup()
