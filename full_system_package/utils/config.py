@@ -5,7 +5,7 @@ SOLENOID_1_PIN = 18  # Main Valve
 SOLENOID_2_PIN = 17  # Secondary/Diverter Valve
 
 # Modbus RS-485 — separate USB adapters per sensor
-FLOW_PORT = '/dev/ttyUSB2'
+FLOW_PORT = '/dev/ttyUSB0'
 TURBIDITY_PORT = '/dev/ttyUSB1'
 MODBUS_BAUDRATE = 9600
 FLOW_SLAVE_ID = 1
