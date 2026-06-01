@@ -16,8 +16,10 @@ class TurbiditySensor:
             )
             if result.isError():
                 raise ModbusException("Error reading turbidity registers")
+            r0, r1 = result.registers[0], result.registers[1]
+            print(f"Turbidity raw registers: r0={r0:#06x} r1={r1:#06x}")
             # Two registers as big-endian FP32 (AB CD)
-            raw = struct.pack('>HH', result.registers[0], result.registers[1])
+            raw = struct.pack('>HH', r0, r1)
             return struct.unpack('>f', raw)[0]
         except Exception as e:
             print(f"Modbus error: {e}")
