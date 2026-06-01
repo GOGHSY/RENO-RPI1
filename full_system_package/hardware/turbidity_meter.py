@@ -1,23 +1,28 @@
 from pymodbus.exceptions import ModbusException
+from pymodbus.payload import BinaryPayloadDecoder
+from pymodbus.constants import Endian
+
 
 class TurbiditySensor:
-    def __init__(self, client, unit_id=2, register=0):
+    def __init__(self, client, unit_id=4):
         self.client = client
         self.unit_id = unit_id
-        self.register = register
 
-    def read_voltage(self):
+    def read_ntu(self):
         try:
             result = self.client.read_holding_registers(
-                address=self.register,
-                count=1,
+                address=0,
+                count=2,
                 device_id=self.unit_id,
             )
             if result.isError():
-                raise ModbusException(f"Error reading register {self.register}")
-            raw = result.registers[0]
-            voltage = (raw / 32767.0) * 5.0  # 0–32767 → 0–5 V; adjust per device spec
-            return voltage
+                raise ModbusException("Error reading turbidity registers")
+            decoder = BinaryPayloadDecoder.fromRegisters(
+                result.registers,
+                byteorder=Endian.BIG,
+                wordorder=Endian.BIG,
+            )
+            return decoder.decode_32bit_float()
         except Exception as e:
             print(f"Modbus error: {e}")
             return None

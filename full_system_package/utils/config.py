@@ -9,7 +9,7 @@ FLOW_PORT = '/dev/ttyUSB0'
 TURBIDITY_PORT = '/dev/ttyUSB1'
 MODBUS_BAUDRATE = 9600
 FLOW_SLAVE_ID = 1
-TURBIDITY_SLAVE_ID = 1
+TURBIDITY_SLAVE_ID = 4
 
 # InfluxDB 2.x Settings
 INFLUX_URL = "http://localhost:8086"

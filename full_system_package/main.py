@@ -50,8 +50,8 @@ def start():
     try:
         while True:
             flow      = meter.get_flow_rate()
-            turbidity = turbidity_sensor.read_voltage()
-            print("RAW VOLTAGE:", turbidity, type(turbidity))
+            turbidity = turbidity_sensor.read_ntu()
+            print("RAW NTU:", turbidity, type(turbidity))
 
             try:
                 turbidity = float(turbidity)
