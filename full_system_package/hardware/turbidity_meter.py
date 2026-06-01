@@ -1,6 +1,5 @@
+import struct
 from pymodbus.exceptions import ModbusException
-from pymodbus.payload import BinaryPayloadDecoder
-from pymodbus.constants import Endian
 
 
 class TurbiditySensor:
@@ -17,12 +16,9 @@ class TurbiditySensor:
             )
             if result.isError():
                 raise ModbusException("Error reading turbidity registers")
-            decoder = BinaryPayloadDecoder.fromRegisters(
-                result.registers,
-                byteorder=Endian.BIG,
-                wordorder=Endian.BIG,
-            )
-            return decoder.decode_32bit_float()
+            # Two registers as big-endian FP32 (AB CD)
+            raw = struct.pack('>HH', result.registers[0], result.registers[1])
+            return struct.unpack('>f', raw)[0]
         except Exception as e:
             print(f"Modbus error: {e}")
             return None
