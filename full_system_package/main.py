@@ -1,5 +1,7 @@
+import json
 import time
 import threading
+from pathlib import Path
 from pymodbus.client import ModbusSerialClient
 from .hardware.flow_sensor import FlowSensor
 from .hardware.solenoid import Solenoid
@@ -8,7 +10,18 @@ from .database.victoria_logger import VictoriaMetricsLogger
 from .control.manager import ControlManager
 from .utils import config
 from .hardware.turbidity_meter import TurbiditySensor
+from .hardware.alum_pump import AlumPump
 from .services.receiver import start_receiver
+
+DOSE_STATE_FILE = Path(__file__).resolve().parents[1] / "dose_state.json"
+STOCK_MG_PER_ML = 50.0  # 50,000 mg/L stock
+
+def _get_dose_ratio() -> float:
+    try:
+        dose = json.loads(DOSE_STATE_FILE.read_text())["dose_mg_per_l"]
+        return dose / STOCK_MG_PER_ML
+    except Exception:
+        return config.ALUM_DOSE_RATIO
 
 def start():
     GPIO.setmode(GPIO.BCM)
@@ -37,6 +50,7 @@ def start():
     valve_aux  = Solenoid(config.SOLENOID_2_PIN)
     meter      = FlowSensor(client=flow_client, slave_id=config.FLOW_SLAVE_ID)
     turbidity_sensor = TurbiditySensor(client=turbidity_client, unit_id=config.TURBIDITY_SLAVE_ID)
+    alum_pump  = AlumPump(port=config.ALUM_PORT, baudrate=config.ALUM_PUMP_BAUDRATE)
     logger     = VictoriaMetricsLogger()
     brain      = ControlManager()
 
@@ -62,10 +76,12 @@ def start():
             if brain.should_shutdown(turbidity):
                 valve_main.close()
                 valve_aux.open()
-                status = "ALERT: High Flow"
+                alum_pump.stop()
+                status = "ALERT: High Turbidity"
             else:
                 valve_main.open()
                 valve_aux.close()
+                alum_pump.dose(flow, _get_dose_ratio())
                 status = "Normal"
 
             logger.log(flow, valve_main.is_active, valve_aux.is_active, turbidity, status)
@@ -76,6 +92,7 @@ def start():
     except KeyboardInterrupt:
         print("Stopping...")
     finally:
+        alum_pump.close()
         flow_client.close()
         turbidity_client.close()
         GPIO.cleanup()

@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 
@@ -5,6 +6,7 @@ import requests
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 
 import zenoh
 
@@ -13,6 +15,19 @@ app = FastAPI()
 # Directory Setup
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+
+# Alum dose state file — shared with the main sensor loop
+DOSE_STATE_FILE = Path(__file__).resolve().parents[3] / "dose_state.json"
+STOCK_CONCENTRATION_MG_PER_ML = 50.0  # 50,000 mg/L = 50 mg/mL
+
+def _read_dose() -> float:
+    try:
+        return json.loads(DOSE_STATE_FILE.read_text())["dose_mg_per_l"]
+    except Exception:
+        return 10.0  # default 10 mg/L
+
+def _write_dose(dose: float) -> None:
+    DOSE_STATE_FILE.write_text(json.dumps({"dose_mg_per_l": dose}))
 
 # VictoriaMetrics endpoint
 VM_URL = "http://localhost:8428/api/v1/query"
@@ -103,6 +118,24 @@ def pump_stop():
         raise HTTPException(status_code=503, detail="Zenoh unavailable")
     pub.put('{"cmd":"pump_stop"}')
     return {"ok": True}
+
+
+class DoseRequest(BaseModel):
+    dose_mg_per_l: float
+
+@app.get("/alum/dose")
+def get_dose():
+    dose = _read_dose()
+    ratio = dose / STOCK_CONCENTRATION_MG_PER_ML
+    return {"dose_mg_per_l": dose, "ratio_ml_per_l": round(ratio, 4)}
+
+@app.post("/alum/dose")
+def set_dose(body: DoseRequest):
+    if body.dose_mg_per_l <= 0:
+        raise HTTPException(status_code=400, detail="Dose must be positive")
+    _write_dose(body.dose_mg_per_l)
+    ratio = body.dose_mg_per_l / STOCK_CONCENTRATION_MG_PER_ML
+    return {"dose_mg_per_l": body.dose_mg_per_l, "ratio_ml_per_l": round(ratio, 4)}
 
 
 @app.get("/status")

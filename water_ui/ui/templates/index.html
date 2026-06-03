@@ -263,6 +263,27 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="card">
+                    <div class="card-title">Alum Dosing</div>
+                    <div style="margin-bottom:0.5rem">
+                        Stock concentration: <b>50,000 mg/L</b>
+                    </div>
+                    <div class="control-tray">
+                        <div class="switch-row">
+                            <label style="font-size:0.75rem;font-weight:600">Target Dose:</label>
+                            <div>
+                                <input type="number" id="alum-dose-input" value="10" step="1" min="1" style="width:60px;padding:2px"/>
+                                <small>mg/L</small>
+                            </div>
+                        </div>
+                        <div class="switch-row" style="margin-top:8px">
+                            <span style="font-size:0.75rem;color:var(--muted)">Pump rate: <b id="alum-ratio">—</b> mL/L</span>
+                            <button class="btn" style="background:var(--accent);color:white;border:none" onclick="saveDose()">Save</button>
+                        </div>
+                        <div id="alum-status" style="font-size:0.7rem;color:var(--muted);margin-top:4px"></div>
+                    </div>
+                </div>
             </div>
 
             <div id="history-view" class="card">
@@ -430,6 +451,35 @@
                         .join("");
                 }
             }
+
+            async function loadDose() {
+                try {
+                    const res = await fetch('/alum/dose');
+                    const data = await res.json();
+                    document.getElementById('alum-dose-input').value = data.dose_mg_per_l;
+                    document.getElementById('alum-ratio').innerText = data.ratio_ml_per_l;
+                } catch (e) {}
+            }
+
+            async function saveDose() {
+                const dose = parseFloat(document.getElementById('alum-dose-input').value);
+                const status = document.getElementById('alum-status');
+                try {
+                    const res = await fetch('/alum/dose', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({dose_mg_per_l: dose})
+                    });
+                    const data = await res.json();
+                    document.getElementById('alum-ratio').innerText = data.ratio_ml_per_l;
+                    status.innerText = 'Saved ✓';
+                    setTimeout(() => status.innerText = '', 3000);
+                } catch (e) {
+                    status.innerText = 'Error saving';
+                }
+            }
+
+            loadDose();
 
             function exportCSV() {
                 let csv =
