@@ -96,7 +96,10 @@ def start():
             ml_per_min = round(flow * _get_dose_ratio(), 2)
             pub = _get_alum_publisher()
             if pub:
-                pub.put(json.dumps({"ml_per_min": ml_per_min}))
+                try:
+                    pub.put(json.dumps({"ml_per_min": ml_per_min}))
+                except Exception:
+                    _alum_pub = None
 
             logger.log(flow, valve_main.is_active, valve_aux.is_active, turbidity, status)
             print(f"flow:{flow} | V1: {valve_main.is_active} | V2: {valve_aux.is_active} | turbidity:{turbidity} | alum:{ml_per_min}mL/min")
