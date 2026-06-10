@@ -481,6 +481,13 @@
 
             loadDose();
 
+            document.getElementById('alum-dose-input').addEventListener('input', function () {
+                const dose = parseFloat(this.value);
+                if (!isNaN(dose) && dose > 0) {
+                    document.getElementById('alum-ratio').innerText = (dose / 50.0).toFixed(4);
+                }
+            });
+
             function exportCSV() {
                 let csv =
                     "Time,Flow,FlocPh,NTU,EffPh,EC\n" +
