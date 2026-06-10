@@ -22,15 +22,16 @@ def _get_dose_ratio() -> float:
     except Exception:
         return 0.2
 
+_alum_session = None
 _alum_pub = None
 
 def _get_alum_publisher():
-    global _alum_pub
+    global _alum_session, _alum_pub
     if _alum_pub is not None:
         return _alum_pub
     try:
-        session = zenoh.open(zenoh.Config())
-        _alum_pub = session.declare_publisher("reno/water/alum/pump")
+        _alum_session = zenoh.open(zenoh.Config())
+        _alum_pub = _alum_session.declare_publisher("reno/water/alum/pump")
     except Exception as e:
         print(f"Warning: could not create alum Zenoh publisher: {e}")
     return _alum_pub
