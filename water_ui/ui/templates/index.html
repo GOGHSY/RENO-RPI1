@@ -293,6 +293,31 @@
 
       </div>
     </div>
+
+    <!-- Alum Dosing Control -->
+    <div class="section">
+      <div class="section-hdr"><div class="dot" style="background:var(--amber)"></div><h2>Alum Dosing</h2></div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1rem;display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap">
+        <div>
+          <div class="card-title" style="margin-bottom:.4rem">Target Dose (mg/L)</div>
+          <input type="number" id="alum-dose-input" value="10" step="1" min="1"
+            style="width:80px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:.9rem"/>
+        </div>
+        <div>
+          <div class="card-title" style="margin-bottom:.4rem">Pump Rate</div>
+          <span style="font-size:1rem;font-weight:700" id="alum-ratio">—</span>
+          <span style="font-size:.75rem;color:var(--muted)"> mL/L</span>
+        </div>
+        <div>
+          <button onclick="saveDose()"
+            style="padding:6px 18px;background:var(--blue);color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer">
+            Save
+          </button>
+          <div id="alum-status" style="font-size:.7rem;color:var(--muted);margin-top:4px"></div>
+        </div>
+      </div>
+    </div>
+
   </div><!-- end #live-view -->
 
 
@@ -653,6 +678,42 @@ window.addEventListener("DOMContentLoaded", () => {
 <!-- fix onclick for renamed tblPage_ -->
 <script>
 function tblPage(delta) { tblPage_(delta); }
+</script>
+
+<script>
+async function loadDose() {
+  try {
+    const res = await fetch('/alum/dose');
+    const data = await res.json();
+    document.getElementById('alum-dose-input').value = data.dose_mg_per_l;
+    document.getElementById('alum-ratio').innerText = data.ratio_ml_per_l;
+  } catch(e) {}
+}
+
+async function saveDose() {
+  const dose = parseFloat(document.getElementById('alum-dose-input').value);
+  const status = document.getElementById('alum-status');
+  if (isNaN(dose) || dose <= 0) { status.innerText = 'Enter a valid dose.'; return; }
+  try {
+    const res = await fetch('/alum/dose', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({dose_mg_per_l: dose})
+    });
+    const data = await res.json();
+    document.getElementById('alum-ratio').innerText = data.ratio_ml_per_l;
+    status.innerText = 'Saved.';
+    setTimeout(() => status.innerText = '', 2000);
+  } catch(e) { status.innerText = 'Error saving.'; }
+}
+
+document.getElementById('alum-dose-input').addEventListener('input', function() {
+  const dose = parseFloat(this.value);
+  if (!isNaN(dose) && dose > 0)
+    document.getElementById('alum-ratio').innerText = (dose / 50.0).toFixed(4);
+});
+
+loadDose();
 </script>
 </body>
 </html>

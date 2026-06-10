@@ -1,5 +1,7 @@
+import json
 import time
 import threading
+from pathlib import Path
 from pymodbus.client import ModbusSerialClient
 from .hardware.flow_sensor import FlowSensor
 from .hardware.solenoid import Solenoid
@@ -9,6 +11,29 @@ from .control.manager import ControlManager
 from .utils import config
 from .hardware.turbidity_meter import TurbiditySensor
 from .services.receiver import start_receiver
+import zenoh
+
+DOSE_STATE_FILE = Path(__file__).resolve().parents[1] / "dose_state.json"
+STOCK_MG_PER_ML = 50.0
+
+def _get_dose_ratio() -> float:
+    try:
+        return json.loads(DOSE_STATE_FILE.read_text())["dose_mg_per_l"] / STOCK_MG_PER_ML
+    except Exception:
+        return 0.2
+
+_alum_pub = None
+
+def _get_alum_publisher():
+    global _alum_pub
+    if _alum_pub is not None:
+        return _alum_pub
+    try:
+        session = zenoh.open(zenoh.Config())
+        _alum_pub = session.declare_publisher("reno/water/alum/pump")
+    except Exception as e:
+        print(f"Warning: could not create alum Zenoh publisher: {e}")
+    return _alum_pub
 
 def start():
     GPIO.setmode(GPIO.BCM)
@@ -68,8 +93,13 @@ def start():
                 valve_aux.close()
                 status = "Normal"
 
+            ml_per_min = round(flow * _get_dose_ratio(), 2)
+            pub = _get_alum_publisher()
+            if pub:
+                pub.put(json.dumps({"ml_per_min": ml_per_min}))
+
             logger.log(flow, valve_main.is_active, valve_aux.is_active, turbidity, status)
-            print(f"flow:{flow} | V1: {valve_main.is_active} | V2: {valve_aux.is_active} | turbidity:{turbidity}")
+            print(f"flow:{flow} | V1: {valve_main.is_active} | V2: {valve_aux.is_active} | turbidity:{turbidity} | alum:{ml_per_min}mL/min")
 
             time.sleep(1)
 

@@ -1,5 +1,6 @@
 import base64
 import csv
+import json
 import os
 import secrets
 from contextlib import asynccontextmanager
@@ -13,12 +14,25 @@ import shared_state
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 VM_URL       = "http://localhost:8428/api/v1/query"
 VM_RANGE_URL = "http://localhost:8428/api/v1/query_range"
+
+DOSE_STATE_FILE = Path(__file__).resolve().parents[3] / "dose_state.json"
+STOCK_MG_PER_ML = 50.0  # 50,000 mg/L stock = 50 mg/mL
+
+def _read_dose() -> float:
+    try:
+        return json.loads(DOSE_STATE_FILE.read_text())["dose_mg_per_l"]
+    except Exception:
+        return 10.0
+
+def _write_dose(dose: float) -> None:
+    DOSE_STATE_FILE.write_text(json.dumps({"dose_mg_per_l": dose}))
 
 ZENOH_KEY = "water/control"
 
@@ -229,6 +243,24 @@ async def set_threshold(request: Request):
     except (KeyError, TypeError, ValueError) as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"value": shared_state.get_threshold()}
+
+
+# ── Alum dose ──────────────────────────────────────────────────────────────
+
+class DoseRequest(BaseModel):
+    dose_mg_per_l: float
+
+@app.get("/alum/dose")
+def get_dose():
+    dose = _read_dose()
+    return {"dose_mg_per_l": dose, "ratio_ml_per_l": round(dose / STOCK_MG_PER_ML, 4)}
+
+@app.post("/alum/dose")
+def set_dose(body: DoseRequest):
+    if body.dose_mg_per_l <= 0:
+        raise HTTPException(status_code=400, detail="Dose must be positive")
+    _write_dose(body.dose_mg_per_l)
+    return {"dose_mg_per_l": body.dose_mg_per_l, "ratio_ml_per_l": round(body.dose_mg_per_l / STOCK_MG_PER_ML, 4)}
 
 
 # ── Debug ──────────────────────────────────────────────────────────────────
