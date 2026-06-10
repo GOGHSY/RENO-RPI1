@@ -10,7 +10,6 @@ from .database.victoria_logger import VictoriaMetricsLogger
 from .control.manager import ControlManager
 from .utils import config
 from .hardware.turbidity_meter import TurbiditySensor
-from .services.receiver import start_receiver
 import zenoh
 
 DOSE_STATE_FILE = Path(__file__).resolve().parents[1] / "dose_state.json"
@@ -30,7 +29,9 @@ def _get_alum_publisher():
     if _alum_pub is not None:
         return _alum_pub
     try:
-        _alum_session = zenoh.open(zenoh.Config())
+        conf = zenoh.Config()
+        conf.insert_json5("connect/endpoints", '["tcp/127.0.0.1:7447"]')
+        _alum_session = zenoh.open(conf)
         _alum_pub = _alum_session.declare_publisher("reno/water/alum/pump")
     except Exception as e:
         print(f"Warning: could not create alum Zenoh publisher: {e}")
@@ -65,11 +66,6 @@ def start():
     turbidity_sensor = TurbiditySensor(client=turbidity_client, unit_id=config.TURBIDITY_SLAVE_ID)
     logger     = VictoriaMetricsLogger()
     brain      = ControlManager()
-
-    # Start MQTT receiver in background thread
-    receiver_thread = threading.Thread(target=start_receiver, daemon=True)
-    receiver_thread.start()
-    print("MQTT Receiver started in background...")
 
     print("System Online. Monitoring Dual-Valve Setup...")
 
