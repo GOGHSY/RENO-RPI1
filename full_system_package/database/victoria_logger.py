@@ -67,25 +67,14 @@ class VictoriaMetricsLogger:
             except (ValueError, TypeError):
                 fields.append(f'{key}="{value}"')
 
-        # timestamp (optional)
-        ts = ""
-        if "timestamp" in data:
-            try:
-                dt = datetime.strptime(data["timestamp"], "%Y-%m-%d %H:%M:%S.%f")
-                ts = int(dt.timestamp() * 1000)
-            except Exception:
-                pass
-
-        # assemble line protocol
+        # assemble line protocol (no explicit timestamp — let VictoriaMetrics
+        # use current ingest time so instant queries always find recent data)
         line = measurement
 
         if tags:
             line += "," + ",".join(tags)
 
         line += " " + ",".join(fields)
-
-        if ts:
-            line += f" {ts}"
 
         self._send(line)
 
