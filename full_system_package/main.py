@@ -102,19 +102,21 @@ def start():
 
     print("System Online. Monitoring Dual-Valve Setup...")
 
+    _last_turbidity = None  # last successful turbidity reading
+
     try:
         while True:
             flow      = meter.get_flow_rate()
             turbidity = turbidity_sensor.read_voltage()
             print("RAW VOLTAGE:", turbidity, type(turbidity))
 
-            if turbidity is None:
-                print("Turbidity read failed — skipping control cycle")
-                time.sleep(1)
-                continue
-            turbidity = float(turbidity)
+            if turbidity is not None:
+                _last_turbidity = float(turbidity)
 
-            if brain.should_shutdown(turbidity):
+            # Use last known value for control logic; default to 0 (safe) if never read
+            turbidity_for_control = _last_turbidity if _last_turbidity is not None else 0.0
+
+            if brain.should_shutdown(turbidity_for_control):
                 valve_main.close()
                 valve_aux.open()
                 status = "ALERT: High Flow"
@@ -131,8 +133,8 @@ def start():
                 except Exception:
                     _alum_pub = None
 
-            logger.log(flow, valve_main.is_active, valve_aux.is_active, turbidity, status)
-            print(f"flow:{flow} | V1: {valve_main.is_active} | V2: {valve_aux.is_active} | turbidity:{turbidity} | alum:{ml_per_min}mL/min")
+            logger.log(flow, valve_main.is_active, valve_aux.is_active, _last_turbidity, status)
+            print(f"flow:{flow} | V1: {valve_main.is_active} | V2: {valve_aux.is_active} | turbidity:{_last_turbidity} | alum:{ml_per_min}mL/min")
 
             time.sleep(1)
 

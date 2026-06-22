@@ -28,16 +28,15 @@ class VictoriaMetricsLogger:
     # -------------------------
     def log(self, flow, v1_state, v2_state, turbidity, status):
         """Logs filtration system data"""
-        # Escape tag values per InfluxDB line protocol spec
         status_tag = status.replace(",", "\\,").replace("=", "\\=").replace(" ", "\\ ")
-        line = (
-            f"filtration,status={status_tag} "
+        fields = (
             f"flow_rate={float(flow)},"
             f"valve_1_active={1 if v1_state else 0},"
-            f"valve_2_active={1 if v2_state else 0},"
-            f"turbidity={float(turbidity)}"
+            f"valve_2_active={1 if v2_state else 0}"
         )
-
+        if turbidity is not None:
+            fields += f",turbidity={float(turbidity)}"
+        line = f"filtration,status={status_tag} {fields}"
         self._send(line)
 
     # -------------------------
