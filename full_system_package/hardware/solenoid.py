@@ -1,20 +1,24 @@
+import logging
+
 import RPi.GPIO as GPIO
 
-class Solenoid:
-    def __init__(self, pin=18):
-        self.pin = pin
-        # Using the setup from your attached code
-        GPIO.setup(self.pin, GPIO.OUT)
-        self.close() # Default to OFF
+_log = logging.getLogger(__name__)
 
-    def open(self):
-        print(f"Solenoid on pin {self.pin} ON")
+
+class Solenoid:
+    def __init__(self, pin: int = 18):
+        self.pin = pin
+        GPIO.setup(self.pin, GPIO.OUT)
+        self.close()
+
+    def open(self) -> None:
+        _log.info("Solenoid pin %d ON", self.pin)
         GPIO.output(self.pin, GPIO.HIGH)
 
-    def close(self):
-        print(f"Solenoid on pin {self.pin} OFF")
+    def close(self) -> None:
+        _log.info("Solenoid pin %d OFF", self.pin)
         GPIO.output(self.pin, GPIO.LOW)
 
     @property
-    def is_active(self):
+    def is_active(self) -> bool:
         return GPIO.input(self.pin) == GPIO.HIGH

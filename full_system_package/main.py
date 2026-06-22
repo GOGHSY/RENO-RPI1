@@ -1,49 +1,62 @@
 import json
+import logging
 import time
 import threading
 from pathlib import Path
+
+import RPi.GPIO as GPIO
 from pymodbus.client import ModbusSerialClient
+
+import shared_state
+import zenoh
+
+from .control.manager import ControlManager
+from .database.victoria_logger import VictoriaMetricsLogger
 from .hardware.flow_sensor import FlowSensor
 from .hardware.solenoid import Solenoid
-import RPi.GPIO as GPIO
-from .database.victoria_logger import VictoriaMetricsLogger
-from .control.manager import ControlManager
-from .utils import config
 from .hardware.turbidity_meter import TurbiditySensor
-import zenoh
-import shared_state
+from .utils import config
+
+_log = logging.getLogger(__name__)
 
 DOSE_STATE_FILE  = Path(__file__).resolve().parents[1] / "dose_state.json"
 RELAY_STATE_FILE = Path(__file__).resolve().parents[1] / "relay_state.json"
 STOCK_MG_PER_ML  = 50.0
+
+_alum_session = None
+_alum_pub     = None
+
+
 def _get_dose_ratio() -> float:
     try:
         return json.loads(DOSE_STATE_FILE.read_text())["dose_mg_per_l"] / STOCK_MG_PER_ML
     except Exception:
         return 0.2
 
-def _get_relay_config():
+
+def _get_relay_config() -> tuple:
     try:
         data = json.loads(RELAY_STATE_FILE.read_text())
         return (
             bool(data.get("enabled", False)),
-            float(data.get("on_duration_seconds", 5.0)),
-            float(data.get("off_duration_seconds", 10.0)),
+            float(data.get("on_duration_seconds", 60.0)),
+            float(data.get("off_duration_seconds", 300.0)),
         )
     except Exception:
-        return False, 5.0, 10.0
+        return False, 60.0, 300.0
 
-def _relay_timer_thread():
+
+def _relay_timer_thread() -> None:
     while True:
         enabled, on_dur, off_dur = _get_relay_config()
         if enabled and on_dur > 0 and off_dur > 0:
-            print(f"[RELAY] ON for {on_dur}s")
-            GPIO.output(config.RELAY_PIN, GPIO.LOW)   # active-LOW: LOW = ON
+            _log.info("Relay ON for %.0fs", on_dur)
+            GPIO.output(config.RELAY_PIN, GPIO.LOW)
             shared_state.set_relay_on(True)
             time.sleep(on_dur)
-            GPIO.output(config.RELAY_PIN, GPIO.HIGH)  # active-LOW: HIGH = OFF
+            GPIO.output(config.RELAY_PIN, GPIO.HIGH)
             shared_state.set_relay_on(False)
-            print(f"[RELAY] OFF for {off_dur}s")
+            _log.info("Relay OFF for %.0fs", off_dur)
             end = time.monotonic() + off_dur
             while time.monotonic() < end:
                 time.sleep(0.5)
@@ -52,8 +65,6 @@ def _relay_timer_thread():
             shared_state.set_relay_on(False)
             time.sleep(1.0)
 
-_alum_session = None
-_alum_pub = None
 
 def _get_alum_publisher():
     global _alum_session, _alum_pub
@@ -65,64 +76,61 @@ def _get_alum_publisher():
         _alum_session = zenoh.open(conf)
         _alum_pub = _alum_session.declare_publisher("reno/water/alum/pump")
     except Exception as e:
-        print(f"Warning: could not create alum Zenoh publisher: {e}")
+        _log.warning("Could not create alum Zenoh publisher: %s", e)
     return _alum_pub
 
-def start():
+
+def _make_modbus_client(port: str) -> ModbusSerialClient:
+    return ModbusSerialClient(
+        port=port,
+        baudrate=config.MODBUS_BAUDRATE,
+        parity="N",
+        stopbits=1,
+        bytesize=8,
+    )
+
+
+def start() -> None:
     GPIO.setmode(GPIO.BCM)
     GPIO.setwarnings(False)
 
-    flow_client = ModbusSerialClient(
-        port=config.FLOW_PORT,
-        baudrate=config.MODBUS_BAUDRATE,
-        parity='N',
-        stopbits=1,
-        bytesize=8,
-    )
+    flow_client = _make_modbus_client(config.FLOW_PORT)
     if not flow_client.connect():
-        print(f"Warning: could not connect to flow meter on {config.FLOW_PORT}")
+        _log.warning("Could not connect to flow meter on %s", config.FLOW_PORT)
 
-    turbidity_client = ModbusSerialClient(
-        port=config.TURBIDITY_PORT,
-        baudrate=config.MODBUS_BAUDRATE,
-        parity='N',
-        stopbits=1,
-        bytesize=8,
-    )
+    turbidity_client = _make_modbus_client(config.TURBIDITY_PORT)
     if not turbidity_client.connect():
-        print(f"Warning: could not connect to turbidity meter on {config.TURBIDITY_PORT}")
+        _log.warning("Could not connect to turbidity meter on %s", config.TURBIDITY_PORT)
 
     GPIO.setup(config.RELAY_PIN, GPIO.OUT)
-    GPIO.output(config.RELAY_PIN, GPIO.HIGH)  # active-LOW: start OFF
+    GPIO.output(config.RELAY_PIN, GPIO.HIGH)
     threading.Thread(target=_relay_timer_thread, daemon=True).start()
 
-    valve_main = Solenoid(config.SOLENOID_1_PIN)
-    valve_aux  = Solenoid(config.SOLENOID_2_PIN)
-    meter      = FlowSensor(client=flow_client, slave_id=config.FLOW_SLAVE_ID)
+    valve_main       = Solenoid(config.SOLENOID_1_PIN)
+    valve_aux        = Solenoid(config.SOLENOID_2_PIN)
+    meter            = FlowSensor(client=flow_client, slave_id=config.FLOW_SLAVE_ID)
     turbidity_sensor = TurbiditySensor(client=turbidity_client, unit_id=config.TURBIDITY_SLAVE_ID)
-    logger     = VictoriaMetricsLogger()
-    brain      = ControlManager()
+    logger           = VictoriaMetricsLogger()
+    brain            = ControlManager()
 
-    print("System Online. Monitoring Dual-Valve Setup...")
+    _log.info("System online — monitoring dual-valve filtration")
 
-    _last_turbidity = None  # last successful turbidity reading
+    last_turbidity = None
 
     try:
         while True:
             flow      = meter.get_flow_rate()
             turbidity = turbidity_sensor.read_voltage()
-            print("RAW VOLTAGE:", turbidity, type(turbidity))
 
             if turbidity is not None:
-                _last_turbidity = float(turbidity)
+                last_turbidity = float(turbidity)
 
-            # Use last known value for control logic; default to 0 (safe) if never read
-            turbidity_for_control = _last_turbidity if _last_turbidity is not None else 0.0
+            turbidity_for_control = last_turbidity if last_turbidity is not None else 0.0
 
             if brain.should_shutdown(turbidity_for_control):
                 valve_main.close()
                 valve_aux.open()
-                status = "ALERT: High Flow"
+                status = "ALERT: High Turbidity"
             else:
                 valve_main.open()
                 valve_aux.close()
@@ -136,13 +144,20 @@ def start():
                 except Exception:
                     _alum_pub = None
 
-            logger.log(flow, valve_main.is_active, valve_aux.is_active, _last_turbidity, status)
-            print(f"flow:{flow} | V1: {valve_main.is_active} | V2: {valve_aux.is_active} | turbidity:{_last_turbidity} | alum:{ml_per_min}mL/min")
+            logger.log(flow, valve_main.is_active, valve_aux.is_active, last_turbidity, status)
+            _log.info(
+                "flow=%.2f | turbidity=%s | V1=%s V2=%s | alum=%.2f mL/min",
+                flow,
+                f"{last_turbidity:.2f}" if last_turbidity is not None else "—",
+                "ON" if valve_main.is_active else "OFF",
+                "ON" if valve_aux.is_active else "OFF",
+                ml_per_min,
+            )
 
             time.sleep(1)
 
     except KeyboardInterrupt:
-        print("Stopping...")
+        _log.info("Stopping sensor loop")
     finally:
         flow_client.close()
         turbidity_client.close()
