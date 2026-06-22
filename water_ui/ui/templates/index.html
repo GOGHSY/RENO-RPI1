@@ -261,8 +261,13 @@
             <span style="font-size:.72rem;color:var(--muted)">Status</span>
           </div>
           <div class="relay-row">
+            <span class="mlabel">ON duration</span>
+            <input class="relay-input" type="number" id="relay-pulse" min="1" step="1" value="1" />
+            <span class="unit">sec</span>
+          </div>
+          <div class="relay-row">
             <span class="mlabel">Interval</span>
-            <input class="relay-input" type="number" id="relay-interval" min="1" step="1" value="60" />
+            <input class="relay-input" type="number" id="relay-interval" min="2" step="1" value="60" />
             <span class="unit">sec</span>
           </div>
           <div class="relay-row">
@@ -780,6 +785,7 @@ async function loadRelay() {
     _relayEnabled = data.enabled;
     _relayInterval = data.interval_seconds;
     document.getElementById('relay-interval').value = data.interval_seconds;
+    document.getElementById('relay-pulse').value = data.pulse_duration_seconds ?? 1;
     document.getElementById('relay-enabled').checked = data.enabled;
     updateRelayUI();
   } catch(e) {}
@@ -809,15 +815,18 @@ function updateRelayUI() {
 }
 
 async function saveRelay() {
-  const interval = parseFloat(document.getElementById('relay-interval').value);
-  const enabled  = document.getElementById('relay-enabled').checked;
+  const interval  = parseFloat(document.getElementById('relay-interval').value);
+  const pulse     = parseFloat(document.getElementById('relay-pulse').value);
+  const enabled   = document.getElementById('relay-enabled').checked;
   const msg = document.getElementById('relay-msg');
   if (isNaN(interval) || interval <= 0) { msg.textContent = 'Enter a valid interval.'; return; }
+  if (isNaN(pulse) || pulse <= 0)       { msg.textContent = 'Enter a valid ON duration.'; return; }
+  if (pulse >= interval)                { msg.textContent = 'ON duration must be less than interval.'; return; }
   try {
     const res = await fetch('/relay/config', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({interval_seconds: interval, enabled: enabled})
+      body: JSON.stringify({interval_seconds: interval, pulse_duration_seconds: pulse, enabled: enabled})
     });
     const data = await res.json();
     _relayEnabled = data.enabled;

@@ -16,8 +16,6 @@ import shared_state
 DOSE_STATE_FILE  = Path(__file__).resolve().parents[1] / "dose_state.json"
 RELAY_STATE_FILE = Path(__file__).resolve().parents[1] / "relay_state.json"
 STOCK_MG_PER_ML  = 50.0
-RELAY_PULSE_DURATION = 1.0  # seconds relay stays ON per cycle
-
 def _get_dose_ratio() -> float:
     try:
         return json.loads(DOSE_STATE_FILE.read_text())["dose_mg_per_l"] / STOCK_MG_PER_ML
@@ -27,25 +25,30 @@ def _get_dose_ratio() -> float:
 def _get_relay_config():
     try:
         data = json.loads(RELAY_STATE_FILE.read_text())
-        return float(data.get("interval_seconds", 60)), bool(data.get("enabled", False))
+        return (
+            float(data.get("interval_seconds", 60)),
+            bool(data.get("enabled", False)),
+            float(data.get("pulse_duration_seconds", 1.0)),
+        )
     except Exception:
-        return 60.0, False
+        return 60.0, False, 1.0
 
 def _relay_timer_thread():
     while True:
-        interval, enabled = _get_relay_config()
-        if enabled and interval > 0:
-            print(f"[RELAY] Pulsing ON (pin {config.RELAY_PIN}, interval {interval}s)")
+        interval, enabled, pulse_dur = _get_relay_config()
+        if enabled and interval > 0 and pulse_dur > 0:
+            print(f"[RELAY] ON for {pulse_dur}s (interval {interval}s)")
             GPIO.output(config.RELAY_PIN, GPIO.HIGH)
             shared_state.set_relay_on(True)
-            time.sleep(RELAY_PULSE_DURATION)
+            time.sleep(pulse_dur)
             GPIO.output(config.RELAY_PIN, GPIO.LOW)
             shared_state.set_relay_on(False)
-            print(f"[RELAY] OFF — waiting {interval}s")
-            remaining = interval - RELAY_PULSE_DURATION
-            end = time.monotonic() + remaining
-            while time.monotonic() < end:
-                time.sleep(0.5)
+            print(f"[RELAY] OFF — sleeping {interval}s")
+            remaining = interval - pulse_dur
+            if remaining > 0:
+                end = time.monotonic() + remaining
+                while time.monotonic() < end:
+                    time.sleep(0.5)
         else:
             GPIO.output(config.RELAY_PIN, GPIO.LOW)
             shared_state.set_relay_on(False)
