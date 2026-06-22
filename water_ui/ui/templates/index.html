@@ -167,6 +167,23 @@
     }
     .btn-thresh:hover { background:var(--amber); color:#fff; }
     .thresh-msg { font-size:.68rem; color:var(--green); }
+
+    /* ── Relay control ────────────────────────────────── */
+    .relay-row { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; margin:.4rem 0; }
+    .relay-input {
+      width:80px; border:1px solid var(--border); border-radius:5px;
+      padding:3px 6px; font-size:.82rem; background:var(--bg); color:var(--text);
+    }
+    .relay-toggle { display:flex; align-items:center; gap:.3rem; font-size:.78rem; cursor:pointer; }
+    .relay-toggle input[type=checkbox] { width:15px; height:15px; cursor:pointer; accent-color:var(--green); }
+    .btn-relay {
+      padding:3px 10px; border-radius:5px; border:1px solid var(--green);
+      cursor:pointer; font-size:.75rem; font-weight:600;
+      background:transparent; color:var(--green); transition:.12s;
+    }
+    .btn-relay:hover { background:var(--green); color:#fff; }
+    .relay-msg { font-size:.68rem; color:var(--green); }
+    .relay-countdown { font-size:.75rem; color:var(--muted); margin-top:.2rem; }
   </style>
 </head>
 <body>
@@ -235,6 +252,28 @@
             <div class="valve-item">S1 Valve: <span id="v1-badge" class="badge off">—</span></div>
             <div class="valve-item">S2 Valve: <span id="v2-badge" class="badge off">—</span></div>
           </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Relay Switch — Pin 3</div>
+          <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.4rem">
+            <span class="badge off" id="relay-status-badge">—</span>
+            <span style="font-size:.72rem;color:var(--muted)">Status</span>
+          </div>
+          <div class="relay-row">
+            <span class="mlabel">Interval</span>
+            <input class="relay-input" type="number" id="relay-interval" min="1" step="1" value="60" />
+            <span class="unit">sec</span>
+          </div>
+          <div class="relay-row">
+            <label class="relay-toggle">
+              <input type="checkbox" id="relay-enabled" />
+              <span>Enable</span>
+            </label>
+            <button class="btn-relay" onclick="saveRelay()">Save</button>
+            <span class="relay-msg" id="relay-msg"></span>
+          </div>
+          <div class="relay-countdown" id="relay-countdown"></div>
         </div>
 
       </div>
@@ -714,6 +753,71 @@ document.getElementById('alum-dose-input').addEventListener('input', function() 
 });
 
 loadDose();
+</script>
+
+<script>
+// ── Relay interval control ────────────────────────────────────────────────
+let _relayEnabled = false;
+let _relayInterval = 60;
+let _relayCountdownVal = 0;
+let _relayCountdownTimer = null;
+
+async function loadRelay() {
+  try {
+    const res = await fetch('/relay/config');
+    const data = await res.json();
+    _relayEnabled = data.enabled;
+    _relayInterval = data.interval_seconds;
+    document.getElementById('relay-interval').value = data.interval_seconds;
+    document.getElementById('relay-enabled').checked = data.enabled;
+    updateRelayUI();
+  } catch(e) {}
+}
+
+function updateRelayUI() {
+  const badge = document.getElementById('relay-status-badge');
+  if (_relayEnabled) {
+    badge.textContent = 'ENABLED'; badge.className = 'badge on';
+  } else {
+    badge.textContent = 'DISABLED'; badge.className = 'badge off';
+  }
+  if (_relayCountdownTimer) clearInterval(_relayCountdownTimer);
+  if (_relayEnabled) {
+    _relayCountdownVal = _relayInterval;
+    _relayCountdownTimer = setInterval(() => {
+      _relayCountdownVal--;
+      if (_relayCountdownVal <= 0) _relayCountdownVal = _relayInterval;
+      document.getElementById('relay-countdown').textContent =
+        `Next pulse in ${_relayCountdownVal}s`;
+    }, 1000);
+    document.getElementById('relay-countdown').textContent =
+      `Next pulse in ${_relayCountdownVal}s`;
+  } else {
+    document.getElementById('relay-countdown').textContent = '';
+  }
+}
+
+async function saveRelay() {
+  const interval = parseFloat(document.getElementById('relay-interval').value);
+  const enabled  = document.getElementById('relay-enabled').checked;
+  const msg = document.getElementById('relay-msg');
+  if (isNaN(interval) || interval <= 0) { msg.textContent = 'Enter a valid interval.'; return; }
+  try {
+    const res = await fetch('/relay/config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({interval_seconds: interval, enabled: enabled})
+    });
+    const data = await res.json();
+    _relayEnabled = data.enabled;
+    _relayInterval = data.interval_seconds;
+    updateRelayUI();
+    msg.textContent = 'Saved.';
+    setTimeout(() => msg.textContent = '', 2000);
+  } catch(e) { msg.textContent = 'Error saving.'; }
+}
+
+loadRelay();
 </script>
 </body>
 </html>

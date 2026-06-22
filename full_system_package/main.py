@@ -12,14 +12,38 @@ from .utils import config
 from .hardware.turbidity_meter import TurbiditySensor
 import zenoh
 
-DOSE_STATE_FILE = Path(__file__).resolve().parents[1] / "dose_state.json"
-STOCK_MG_PER_ML = 50.0
+DOSE_STATE_FILE  = Path(__file__).resolve().parents[1] / "dose_state.json"
+RELAY_STATE_FILE = Path(__file__).resolve().parents[1] / "relay_state.json"
+STOCK_MG_PER_ML  = 50.0
+RELAY_PULSE_DURATION = 1.0  # seconds relay stays ON per cycle
 
 def _get_dose_ratio() -> float:
     try:
         return json.loads(DOSE_STATE_FILE.read_text())["dose_mg_per_l"] / STOCK_MG_PER_ML
     except Exception:
         return 0.2
+
+def _get_relay_config() -> tuple[float, bool]:
+    try:
+        data = json.loads(RELAY_STATE_FILE.read_text())
+        return float(data.get("interval_seconds", 60)), bool(data.get("enabled", False))
+    except Exception:
+        return 60.0, False
+
+def _relay_timer_thread():
+    while True:
+        interval, enabled = _get_relay_config()
+        if enabled and interval > 0:
+            GPIO.output(config.RELAY_PIN, GPIO.HIGH)
+            time.sleep(RELAY_PULSE_DURATION)
+            GPIO.output(config.RELAY_PIN, GPIO.LOW)
+            remaining = interval - RELAY_PULSE_DURATION
+            end = time.monotonic() + remaining
+            while time.monotonic() < end:
+                time.sleep(0.5)
+        else:
+            GPIO.output(config.RELAY_PIN, GPIO.LOW)
+            time.sleep(1.0)
 
 _alum_session = None
 _alum_pub = None
@@ -60,6 +84,10 @@ def start():
     if not turbidity_client.connect():
         print(f"Warning: could not connect to turbidity meter on {config.TURBIDITY_PORT}")
 
+    GPIO.setup(config.RELAY_PIN, GPIO.OUT)
+    GPIO.output(config.RELAY_PIN, GPIO.LOW)
+    threading.Thread(target=_relay_timer_thread, daemon=True).start()
+
     valve_main = Solenoid(config.SOLENOID_1_PIN)
     valve_aux  = Solenoid(config.SOLENOID_2_PIN)
     meter      = FlowSensor(client=flow_client, slave_id=config.FLOW_SLAVE_ID)
@@ -75,11 +103,11 @@ def start():
             turbidity = turbidity_sensor.read_voltage()
             print("RAW VOLTAGE:", turbidity, type(turbidity))
 
-            try:
-                turbidity = float(turbidity)
-            except (TypeError, ValueError):
-                print("Invalid turbidity value:", turbidity)
-                turbidity = 0.0
+            if turbidity is None:
+                print("Turbidity read failed — skipping control cycle")
+                time.sleep(1)
+                continue
+            turbidity = float(turbidity)
 
             if brain.should_shutdown(turbidity):
                 valve_main.close()

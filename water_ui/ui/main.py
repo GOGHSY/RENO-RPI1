@@ -22,8 +22,9 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 VM_URL       = "http://localhost:8428/api/v1/query"
 VM_RANGE_URL = "http://localhost:8428/api/v1/query_range"
 
-DOSE_STATE_FILE = Path(__file__).resolve().parents[3] / "dose_state.json"
-STOCK_MG_PER_ML = 50.0  # 50,000 mg/L stock = 50 mg/mL
+DOSE_STATE_FILE  = Path(__file__).resolve().parents[3] / "dose_state.json"
+RELAY_STATE_FILE = Path(__file__).resolve().parents[2] / "relay_state.json"
+STOCK_MG_PER_ML  = 50.0  # 50,000 mg/L stock = 50 mg/mL
 
 def _read_dose() -> float:
     try:
@@ -249,6 +250,35 @@ async def set_threshold(request: Request):
 
 class DoseRequest(BaseModel):
     dose_mg_per_l: float
+
+
+# ── Relay interval ─────────────────────────────────────────────────────────
+
+class RelayConfig(BaseModel):
+    interval_seconds: float
+    enabled: bool
+
+def _read_relay() -> dict:
+    try:
+        return json.loads(RELAY_STATE_FILE.read_text())
+    except Exception:
+        return {"interval_seconds": 60.0, "enabled": False}
+
+def _write_relay(data: dict) -> None:
+    RELAY_STATE_FILE.write_text(json.dumps(data))
+
+@app.get("/relay/config")
+def get_relay_config():
+    return _read_relay()
+
+@app.post("/relay/config")
+def set_relay_config(body: RelayConfig):
+    if body.interval_seconds <= 0:
+        raise HTTPException(status_code=400, detail="Interval must be positive")
+    data = {"interval_seconds": body.interval_seconds, "enabled": body.enabled}
+    _write_relay(data)
+    return data
+
 
 @app.get("/alum/dose")
 def get_dose():
