@@ -266,9 +266,14 @@
             <span class="unit">sec</span>
           </div>
           <div class="relay-row">
+            <span class="mlabel">OFF duration</span>
+            <input class="relay-input" type="number" id="relay-off" min="1" step="1" value="10" />
+            <span class="unit">sec</span>
+          </div>
+          <div class="relay-row">
             <label class="relay-toggle">
               <input type="checkbox" id="relay-enabled" />
-              <span>Enable</span>
+              <span>Enable loop</span>
             </label>
             <button class="btn-relay" onclick="saveRelay()">Save</button>
             <span class="relay-msg" id="relay-msg"></span>
@@ -769,7 +774,8 @@ loadDose();
 <script>
 // ── Relay interval control ────────────────────────────────────────────────
 let _relayEnabled = false;
-let _relayCountdownVal = 0;
+let _relayOnDur = 5;
+let _relayOffDur = 10;
 let _relayCountdownTimer = null;
 
 async function loadRelay() {
@@ -777,7 +783,10 @@ async function loadRelay() {
     const res = await fetch('/relay/config');
     const data = await res.json();
     _relayEnabled = data.enabled;
-    document.getElementById('relay-pulse').value = data.on_duration_seconds ?? 5;
+    _relayOnDur   = data.on_duration_seconds ?? 5;
+    _relayOffDur  = data.off_duration_seconds ?? 10;
+    document.getElementById('relay-pulse').value = _relayOnDur;
+    document.getElementById('relay-off').value   = _relayOffDur;
     document.getElementById('relay-enabled').checked = data.enabled;
     updateRelayUI();
   } catch(e) {}
@@ -785,42 +794,48 @@ async function loadRelay() {
 
 function updateRelayUI() {
   const badge = document.getElementById('relay-status-badge');
+  if (_relayCountdownTimer) clearInterval(_relayCountdownTimer);
   if (_relayEnabled) {
-    badge.textContent = 'ACTIVE'; badge.className = 'badge on';
+    badge.textContent = 'RUNNING'; badge.className = 'badge on';
+    // client-side phase tracker
+    let phaseOn = true;
+    let remaining = _relayOnDur;
+    document.getElementById('relay-countdown').textContent = `ON — ${remaining}s remaining`;
+    _relayCountdownTimer = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        phaseOn = !phaseOn;
+        remaining = phaseOn ? _relayOnDur : _relayOffDur;
+      }
+      document.getElementById('relay-countdown').textContent =
+        `${phaseOn ? 'ON' : 'OFF'} — ${remaining}s remaining`;
+    }, 1000);
   } else {
     badge.textContent = 'OFF'; badge.className = 'badge off';
+    document.getElementById('relay-countdown').textContent = '';
   }
-  if (_relayCountdownTimer) clearInterval(_relayCountdownTimer);
-  document.getElementById('relay-countdown').textContent = '';
 }
 
 async function saveRelay() {
-  const pulse   = parseFloat(document.getElementById('relay-pulse').value);
+  const onDur   = parseFloat(document.getElementById('relay-pulse').value);
+  const offDur  = parseFloat(document.getElementById('relay-off').value);
   const enabled = document.getElementById('relay-enabled').checked;
   const msg = document.getElementById('relay-msg');
-  if (isNaN(pulse) || pulse <= 0) { msg.textContent = 'Enter a valid ON duration.'; return; }
+  if (isNaN(onDur)  || onDur  <= 0) { msg.textContent = 'Enter a valid ON duration.';  return; }
+  if (isNaN(offDur) || offDur <= 0) { msg.textContent = 'Enter a valid OFF duration.'; return; }
   try {
     const res = await fetch('/relay/config', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({on_duration_seconds: pulse, enabled: enabled})
+      body: JSON.stringify({on_duration_seconds: onDur, off_duration_seconds: offDur, enabled: enabled})
     });
     const data = await res.json();
     _relayEnabled = data.enabled;
+    _relayOnDur   = data.on_duration_seconds;
+    _relayOffDur  = data.off_duration_seconds;
     updateRelayUI();
-    msg.textContent = enabled ? `Relay ON for ${pulse}s` : 'Relay disabled.';
-    if (enabled) {
-      // uncheck after duration so UI reflects auto-disable
-      setTimeout(() => {
-        document.getElementById('relay-enabled').checked = false;
-        _relayEnabled = false;
-        updateRelayUI();
-        msg.textContent = 'Relay OFF.';
-        setTimeout(() => msg.textContent = '', 2000);
-      }, pulse * 1000);
-    } else {
-      setTimeout(() => msg.textContent = '', 2000);
-    }
+    msg.textContent = enabled ? 'Loop started.' : 'Relay disabled.';
+    setTimeout(() => msg.textContent = '', 2000);
   } catch(e) { msg.textContent = 'Error saving.'; }
 }
 

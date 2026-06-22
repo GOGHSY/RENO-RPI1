@@ -25,25 +25,28 @@ def _get_dose_ratio() -> float:
 def _get_relay_config():
     try:
         data = json.loads(RELAY_STATE_FILE.read_text())
-        return bool(data.get("enabled", False)), float(data.get("on_duration_seconds", 5.0))
+        return (
+            bool(data.get("enabled", False)),
+            float(data.get("on_duration_seconds", 5.0)),
+            float(data.get("off_duration_seconds", 10.0)),
+        )
     except Exception:
-        return False, 5.0
+        return False, 5.0, 10.0
 
 def _relay_timer_thread():
     while True:
-        enabled, duration = _get_relay_config()
-        if enabled and duration > 0:
-            print(f"[RELAY] ON for {duration}s")
+        enabled, on_dur, off_dur = _get_relay_config()
+        if enabled and on_dur > 0 and off_dur > 0:
+            print(f"[RELAY] ON for {on_dur}s")
             GPIO.output(config.RELAY_PIN, GPIO.LOW)   # active-LOW: LOW = ON
             shared_state.set_relay_on(True)
-            time.sleep(duration)
+            time.sleep(on_dur)
             GPIO.output(config.RELAY_PIN, GPIO.HIGH)  # active-LOW: HIGH = OFF
             shared_state.set_relay_on(False)
-            print("[RELAY] OFF — done")
-            # auto-disable so it doesn't re-fire on next loop
-            RELAY_STATE_FILE.write_text(
-                json.dumps({"enabled": False, "on_duration_seconds": duration})
-            )
+            print(f"[RELAY] OFF for {off_dur}s")
+            end = time.monotonic() + off_dur
+            while time.monotonic() < end:
+                time.sleep(0.5)
         else:
             GPIO.output(config.RELAY_PIN, GPIO.HIGH)
             shared_state.set_relay_on(False)

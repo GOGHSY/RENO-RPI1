@@ -258,15 +258,17 @@ class DoseRequest(BaseModel):
 
 class RelayConfig(BaseModel):
     on_duration_seconds: float
+    off_duration_seconds: float
     enabled: bool
 
 def _read_relay() -> dict:
     try:
         data = json.loads(RELAY_STATE_FILE.read_text())
         data.setdefault("on_duration_seconds", 5.0)
+        data.setdefault("off_duration_seconds", 10.0)
         return data
     except Exception:
-        return {"on_duration_seconds": 5.0, "enabled": False}
+        return {"on_duration_seconds": 5.0, "off_duration_seconds": 10.0, "enabled": False}
 
 def _write_relay(data: dict) -> None:
     RELAY_STATE_FILE.write_text(json.dumps(data))
@@ -279,7 +281,13 @@ def get_relay_config():
 def set_relay_config(body: RelayConfig):
     if body.on_duration_seconds <= 0:
         raise HTTPException(status_code=400, detail="ON duration must be positive")
-    data = {"on_duration_seconds": body.on_duration_seconds, "enabled": body.enabled}
+    if body.off_duration_seconds <= 0:
+        raise HTTPException(status_code=400, detail="OFF duration must be positive")
+    data = {
+        "on_duration_seconds": body.on_duration_seconds,
+        "off_duration_seconds": body.off_duration_seconds,
+        "enabled": body.enabled,
+    }
     _write_relay(data)
     return data
 
