@@ -11,6 +11,7 @@ from .control.manager import ControlManager
 from .utils import config
 from .hardware.turbidity_meter import TurbiditySensor
 import zenoh
+import shared_state
 
 DOSE_STATE_FILE  = Path(__file__).resolve().parents[1] / "dose_state.json"
 RELAY_STATE_FILE = Path(__file__).resolve().parents[1] / "relay_state.json"
@@ -23,7 +24,7 @@ def _get_dose_ratio() -> float:
     except Exception:
         return 0.2
 
-def _get_relay_config() -> tuple[float, bool]:
+def _get_relay_config():
     try:
         data = json.loads(RELAY_STATE_FILE.read_text())
         return float(data.get("interval_seconds", 60)), bool(data.get("enabled", False))
@@ -35,14 +36,17 @@ def _relay_timer_thread():
         interval, enabled = _get_relay_config()
         if enabled and interval > 0:
             GPIO.output(config.RELAY_PIN, GPIO.HIGH)
+            shared_state.set_relay_on(True)
             time.sleep(RELAY_PULSE_DURATION)
             GPIO.output(config.RELAY_PIN, GPIO.LOW)
+            shared_state.set_relay_on(False)
             remaining = interval - RELAY_PULSE_DURATION
             end = time.monotonic() + remaining
             while time.monotonic() < end:
                 time.sleep(0.5)
         else:
             GPIO.output(config.RELAY_PIN, GPIO.LOW)
+            shared_state.set_relay_on(False)
             time.sleep(1.0)
 
 _alum_session = None

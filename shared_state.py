@@ -6,6 +6,19 @@ _lock = threading.Lock()
 _THRESHOLD_FILE = Path(__file__).resolve().parent / "threshold_state.json"
 _DEFAULT_THRESHOLD = 10.0
 
+_relay_on = False
+
+
+def get_relay_on() -> bool:
+    with _lock:
+        return _relay_on
+
+
+def set_relay_on(val: bool) -> None:
+    global _relay_on
+    with _lock:
+        _relay_on = val
+
 
 def _read_from_file() -> float:
     try:

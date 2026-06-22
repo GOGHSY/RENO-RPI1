@@ -133,7 +133,9 @@ async def dashboard(request: Request):
 @app.get("/api/live")
 def get_live():
     """All current metric values in one request."""
-    return {k: _instant(v) for k, v in ALL_METRICS.items()}
+    data = {k: _instant(v) for k, v in ALL_METRICS.items()}
+    data["relay_on"] = shared_state.get_relay_on()
+    return data
 
 
 # ── Historical range ───────────────────────────────────────────────────────

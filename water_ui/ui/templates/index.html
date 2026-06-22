@@ -507,6 +507,17 @@ async function refreshLive() {
   }
   pumpBadge("l-p1","l-p1b",d.Pump1);
   pumpBadge("l-p2","l-p2b",d.Pump2);
+
+  const rb = $("relay-status-badge");
+  if (d.relay_on) {
+    rb.textContent = "PULSING"; rb.className = "badge on";
+  } else if (_relayEnabled) {
+    rb.textContent = "ENABLED"; rb.className = "badge on";
+    rb.style.opacity = "0.6";
+  } else {
+    rb.textContent = "DISABLED"; rb.className = "badge off";
+    rb.style.opacity = "";
+  }
 }
 setInterval(refreshLive, 2000);
 refreshLive();
