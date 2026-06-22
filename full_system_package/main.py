@@ -35,11 +35,13 @@ def _relay_timer_thread():
     while True:
         interval, enabled = _get_relay_config()
         if enabled and interval > 0:
+            print(f"[RELAY] Pulsing ON (pin {config.RELAY_PIN}, interval {interval}s)")
             GPIO.output(config.RELAY_PIN, GPIO.HIGH)
             shared_state.set_relay_on(True)
             time.sleep(RELAY_PULSE_DURATION)
             GPIO.output(config.RELAY_PIN, GPIO.LOW)
             shared_state.set_relay_on(False)
+            print(f"[RELAY] OFF — waiting {interval}s")
             remaining = interval - RELAY_PULSE_DURATION
             end = time.monotonic() + remaining
             while time.monotonic() < end:
