@@ -67,6 +67,7 @@ def _get_alum_publisher():
 
 def start():
     GPIO.setmode(GPIO.BCM)
+    GPIO.setwarnings(False)
 
     flow_client = ModbusSerialClient(
         port=config.FLOW_PORT,
