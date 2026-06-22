@@ -38,10 +38,10 @@ def _relay_timer_thread():
         interval, enabled, pulse_dur = _get_relay_config()
         if enabled and interval > 0 and pulse_dur > 0:
             print(f"[RELAY] ON for {pulse_dur}s (interval {interval}s)")
-            GPIO.output(config.RELAY_PIN, GPIO.HIGH)
+            GPIO.output(config.RELAY_PIN, GPIO.LOW)   # active-LOW relay: LOW = ON
             shared_state.set_relay_on(True)
             time.sleep(pulse_dur)
-            GPIO.output(config.RELAY_PIN, GPIO.LOW)
+            GPIO.output(config.RELAY_PIN, GPIO.HIGH)  # active-LOW relay: HIGH = OFF
             shared_state.set_relay_on(False)
             print(f"[RELAY] OFF — sleeping {interval}s")
             remaining = interval - pulse_dur
@@ -50,7 +50,7 @@ def _relay_timer_thread():
                 while time.monotonic() < end:
                     time.sleep(0.5)
         else:
-            GPIO.output(config.RELAY_PIN, GPIO.LOW)
+            GPIO.output(config.RELAY_PIN, GPIO.HIGH)  # active-LOW relay: HIGH = OFF
             shared_state.set_relay_on(False)
             time.sleep(1.0)
 
@@ -95,7 +95,7 @@ def start():
         print(f"Warning: could not connect to turbidity meter on {config.TURBIDITY_PORT}")
 
     GPIO.setup(config.RELAY_PIN, GPIO.OUT)
-    GPIO.output(config.RELAY_PIN, GPIO.LOW)
+    GPIO.output(config.RELAY_PIN, GPIO.HIGH)  # active-LOW: start OFF
     threading.Thread(target=_relay_timer_thread, daemon=True).start()
 
     valve_main = Solenoid(config.SOLENOID_1_PIN)
