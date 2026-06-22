@@ -3,7 +3,7 @@
 FLOW_SENSOR_PIN = 21
 SOLENOID_1_PIN = 18  # Main Valve
 SOLENOID_2_PIN = 17  # Secondary/Diverter Valve
-RELAY_PIN = 3        # Interval relay switch
+RELAY_PIN = 16       # Interval relay switch (BCM 16 = physical pin 36)
 
 # Modbus RS-485 — separate USB adapters per sensor
 FLOW_PORT = '/dev/ttyUSB1'
