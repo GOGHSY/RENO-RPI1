@@ -257,17 +257,16 @@ class DoseRequest(BaseModel):
 # ── Relay interval ─────────────────────────────────────────────────────────
 
 class RelayConfig(BaseModel):
-    interval_seconds: float
-    pulse_duration_seconds: float
+    on_duration_seconds: float
     enabled: bool
 
 def _read_relay() -> dict:
     try:
         data = json.loads(RELAY_STATE_FILE.read_text())
-        data.setdefault("pulse_duration_seconds", 1.0)
+        data.setdefault("on_duration_seconds", 5.0)
         return data
     except Exception:
-        return {"interval_seconds": 60.0, "pulse_duration_seconds": 1.0, "enabled": False}
+        return {"on_duration_seconds": 5.0, "enabled": False}
 
 def _write_relay(data: dict) -> None:
     RELAY_STATE_FILE.write_text(json.dumps(data))
@@ -278,17 +277,9 @@ def get_relay_config():
 
 @app.post("/relay/config")
 def set_relay_config(body: RelayConfig):
-    if body.interval_seconds <= 0:
-        raise HTTPException(status_code=400, detail="Interval must be positive")
-    if body.pulse_duration_seconds <= 0:
-        raise HTTPException(status_code=400, detail="Pulse duration must be positive")
-    if body.pulse_duration_seconds >= body.interval_seconds:
-        raise HTTPException(status_code=400, detail="Pulse duration must be less than interval")
-    data = {
-        "interval_seconds": body.interval_seconds,
-        "pulse_duration_seconds": body.pulse_duration_seconds,
-        "enabled": body.enabled,
-    }
+    if body.on_duration_seconds <= 0:
+        raise HTTPException(status_code=400, detail="ON duration must be positive")
+    data = {"on_duration_seconds": body.on_duration_seconds, "enabled": body.enabled}
     _write_relay(data)
     return data
 

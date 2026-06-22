@@ -255,19 +255,14 @@
         </div>
 
         <div class="card">
-          <div class="card-title">Relay Switch — Pin 3</div>
+          <div class="card-title">Relay Switch — Pin 16</div>
           <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.4rem">
             <span class="badge off" id="relay-status-badge">—</span>
             <span style="font-size:.72rem;color:var(--muted)">Status</span>
           </div>
           <div class="relay-row">
             <span class="mlabel">ON duration</span>
-            <input class="relay-input" type="number" id="relay-pulse" min="1" step="1" value="1" />
-            <span class="unit">sec</span>
-          </div>
-          <div class="relay-row">
-            <span class="mlabel">Interval</span>
-            <input class="relay-input" type="number" id="relay-interval" min="2" step="1" value="60" />
+            <input class="relay-input" type="number" id="relay-pulse" min="1" step="1" value="5" />
             <span class="unit">sec</span>
           </div>
           <div class="relay-row">
@@ -774,7 +769,6 @@ loadDose();
 <script>
 // ── Relay interval control ────────────────────────────────────────────────
 let _relayEnabled = false;
-let _relayInterval = 60;
 let _relayCountdownVal = 0;
 let _relayCountdownTimer = null;
 
@@ -783,9 +777,7 @@ async function loadRelay() {
     const res = await fetch('/relay/config');
     const data = await res.json();
     _relayEnabled = data.enabled;
-    _relayInterval = data.interval_seconds;
-    document.getElementById('relay-interval').value = data.interval_seconds;
-    document.getElementById('relay-pulse').value = data.pulse_duration_seconds ?? 1;
+    document.getElementById('relay-pulse').value = data.on_duration_seconds ?? 5;
     document.getElementById('relay-enabled').checked = data.enabled;
     updateRelayUI();
   } catch(e) {}
@@ -794,46 +786,41 @@ async function loadRelay() {
 function updateRelayUI() {
   const badge = document.getElementById('relay-status-badge');
   if (_relayEnabled) {
-    badge.textContent = 'ENABLED'; badge.className = 'badge on';
+    badge.textContent = 'ACTIVE'; badge.className = 'badge on';
   } else {
-    badge.textContent = 'DISABLED'; badge.className = 'badge off';
+    badge.textContent = 'OFF'; badge.className = 'badge off';
   }
   if (_relayCountdownTimer) clearInterval(_relayCountdownTimer);
-  if (_relayEnabled) {
-    _relayCountdownVal = _relayInterval;
-    _relayCountdownTimer = setInterval(() => {
-      _relayCountdownVal--;
-      if (_relayCountdownVal <= 0) _relayCountdownVal = _relayInterval;
-      document.getElementById('relay-countdown').textContent =
-        `Next pulse in ${_relayCountdownVal}s`;
-    }, 1000);
-    document.getElementById('relay-countdown').textContent =
-      `Next pulse in ${_relayCountdownVal}s`;
-  } else {
-    document.getElementById('relay-countdown').textContent = '';
-  }
+  document.getElementById('relay-countdown').textContent = '';
 }
 
 async function saveRelay() {
-  const interval  = parseFloat(document.getElementById('relay-interval').value);
-  const pulse     = parseFloat(document.getElementById('relay-pulse').value);
-  const enabled   = document.getElementById('relay-enabled').checked;
+  const pulse   = parseFloat(document.getElementById('relay-pulse').value);
+  const enabled = document.getElementById('relay-enabled').checked;
   const msg = document.getElementById('relay-msg');
-  if (isNaN(interval) || interval <= 0) { msg.textContent = 'Enter a valid interval.'; return; }
-  if (isNaN(pulse) || pulse <= 0)       { msg.textContent = 'Enter a valid ON duration.'; return; }
-  if (pulse >= interval)                { msg.textContent = 'ON duration must be less than interval.'; return; }
+  if (isNaN(pulse) || pulse <= 0) { msg.textContent = 'Enter a valid ON duration.'; return; }
   try {
     const res = await fetch('/relay/config', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({interval_seconds: interval, pulse_duration_seconds: pulse, enabled: enabled})
+      body: JSON.stringify({on_duration_seconds: pulse, enabled: enabled})
     });
     const data = await res.json();
     _relayEnabled = data.enabled;
-    _relayInterval = data.interval_seconds;
     updateRelayUI();
-    msg.textContent = 'Saved.';
-    setTimeout(() => msg.textContent = '', 2000);
+    msg.textContent = enabled ? `Relay ON for ${pulse}s` : 'Relay disabled.';
+    if (enabled) {
+      // uncheck after duration so UI reflects auto-disable
+      setTimeout(() => {
+        document.getElementById('relay-enabled').checked = false;
+        _relayEnabled = false;
+        updateRelayUI();
+        msg.textContent = 'Relay OFF.';
+        setTimeout(() => msg.textContent = '', 2000);
+      }, pulse * 1000);
+    } else {
+      setTimeout(() => msg.textContent = '', 2000);
+    }
   } catch(e) { msg.textContent = 'Error saving.'; }
 }
 

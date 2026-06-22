@@ -25,32 +25,27 @@ def _get_dose_ratio() -> float:
 def _get_relay_config():
     try:
         data = json.loads(RELAY_STATE_FILE.read_text())
-        return (
-            float(data.get("interval_seconds", 60)),
-            bool(data.get("enabled", False)),
-            float(data.get("pulse_duration_seconds", 1.0)),
-        )
+        return bool(data.get("enabled", False)), float(data.get("on_duration_seconds", 5.0))
     except Exception:
-        return 60.0, False, 1.0
+        return False, 5.0
 
 def _relay_timer_thread():
     while True:
-        interval, enabled, pulse_dur = _get_relay_config()
-        if enabled and interval > 0 and pulse_dur > 0:
-            print(f"[RELAY] ON for {pulse_dur}s (interval {interval}s)")
-            GPIO.output(config.RELAY_PIN, GPIO.LOW)   # active-LOW relay: LOW = ON
+        enabled, duration = _get_relay_config()
+        if enabled and duration > 0:
+            print(f"[RELAY] ON for {duration}s")
+            GPIO.output(config.RELAY_PIN, GPIO.LOW)   # active-LOW: LOW = ON
             shared_state.set_relay_on(True)
-            time.sleep(pulse_dur)
-            GPIO.output(config.RELAY_PIN, GPIO.HIGH)  # active-LOW relay: HIGH = OFF
+            time.sleep(duration)
+            GPIO.output(config.RELAY_PIN, GPIO.HIGH)  # active-LOW: HIGH = OFF
             shared_state.set_relay_on(False)
-            print(f"[RELAY] OFF — sleeping {interval}s")
-            remaining = interval - pulse_dur
-            if remaining > 0:
-                end = time.monotonic() + remaining
-                while time.monotonic() < end:
-                    time.sleep(0.5)
+            print("[RELAY] OFF — done")
+            # auto-disable so it doesn't re-fire on next loop
+            RELAY_STATE_FILE.write_text(
+                json.dumps({"enabled": False, "on_duration_seconds": duration})
+            )
         else:
-            GPIO.output(config.RELAY_PIN, GPIO.HIGH)  # active-LOW relay: HIGH = OFF
+            GPIO.output(config.RELAY_PIN, GPIO.HIGH)
             shared_state.set_relay_on(False)
             time.sleep(1.0)
 
