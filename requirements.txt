@@ -1,12 +1,8 @@
 RPi.GPIO
-python-dotenv
-minimalmodbus
-adafruit-blinka
-adafruit-circuitpython-ads1x15
 zenoh
+pymodbus
 fastapi
 uvicorn[standard]
 Jinja2
 requests
-paho-mqtt
 pyngrok

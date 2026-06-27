@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.pyc
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.env
+threshold_state.json
+dose_state.json
+relay_state.json
+wtp.log
