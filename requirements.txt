@@ -1,6 +1,7 @@
 RPi.GPIO
 eclipse-zenoh
 pymodbus
+pyserial
 fastapi
 uvicorn[standard]
 Jinja2
