@@ -2,7 +2,6 @@ import logging
 import subprocess
 import threading
 import time
-import os
 import uvicorn
 from full_system_package import start
 from full_system_package.services.receiver import start_receiver
@@ -61,6 +60,10 @@ def run_ui() -> None:
 
 def _resolve_public_url() -> str | None:
     try:
+        subprocess.run(
+            ["tailscale", "serve", "reset"],
+            capture_output=True, text=True, timeout=10,
+        )
         r = subprocess.run(
             ["tailscale", "funnel", "--bg", "8000"],
             capture_output=True, text=True, timeout=10,
@@ -77,18 +80,6 @@ def _resolve_public_url() -> str | None:
         pass
     except Exception as e:
         _log.warning("Tailscale Funnel error: %s", e)
-
-    try:
-        from pyngrok import ngrok
-        authtoken = os.getenv("NGROK_AUTHTOKEN")
-        if authtoken:
-            ngrok.set_auth_token(authtoken)
-        tunnel = ngrok.connect(8000, "http")
-        return tunnel.public_url
-    except ImportError:
-        pass
-    except Exception as e:
-        _log.warning("ngrok error: %s", e)
 
     return None
 
@@ -121,7 +112,7 @@ if __name__ == "__main__":
         if public_url:
             _log.info("Web UI (public) → %s", public_url)
         else:
-            _log.info("No public URL available (configure Tailscale or NGROK_AUTHTOKEN)")
+            _log.info("No public URL available (configure Tailscale)")
 
         start()
 

@@ -1,6 +1,5 @@
 import base64
 import csv
-import json
 import os
 import secrets
 from contextlib import asynccontextmanager
@@ -22,18 +21,13 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 VM_URL       = "http://localhost:8428/api/v1/query"
 VM_RANGE_URL = "http://localhost:8428/api/v1/query_range"
 
-DOSE_STATE_FILE  = Path(__file__).resolve().parents[3] / "dose_state.json"
-RELAY_STATE_FILE = Path(__file__).resolve().parents[2] / "relay_state.json"
-STOCK_MG_PER_ML  = 50.0  # 50,000 mg/L stock = 50 mg/mL
+STOCK_MG_PER_ML = 50.0  # 50,000 mg/L stock = 50 mg/mL
 
 def _read_dose() -> float:
-    try:
-        return json.loads(DOSE_STATE_FILE.read_text())["dose_mg_per_l"]
-    except Exception:
-        return 10.0
+    return shared_state.read_json(shared_state.DOSE_STATE_FILE, {"dose_mg_per_l": 10.0})["dose_mg_per_l"]
 
 def _write_dose(dose: float) -> None:
-    DOSE_STATE_FILE.write_text(json.dumps({"dose_mg_per_l": dose}))
+    shared_state.write_json(shared_state.DOSE_STATE_FILE, {"dose_mg_per_l": dose})
 
 ZENOH_KEY = "water/control"
 
@@ -162,19 +156,20 @@ def get_range(metric: str, start: int, end: int, step: str = "60s"):
 
 # ── CSV download ───────────────────────────────────────────────────────────
 
-@app.get("/api/download")
-def download_csv(start: int, end: int):
+def _range_step(start: int, end: int) -> str:
     duration = end - start
     if duration <= 3600:
-        step = "10s"
+        return "10s"
     elif duration <= 86400:
-        step = "5m"
-    else:
-        step = "30m"
+        return "5m"
+    return "30m"
 
+
+def _fetch_all_metrics(start: int, end: int, step: str) -> tuple[list[str], dict[int, dict], set[int]]:
+    """Fetch every metric in ALL_METRICS over a time range, keyed by timestamp."""
+    cols = list(ALL_METRICS.keys())
     data: dict[int, dict] = {}
     timestamps: set[int] = set()
-
     for col, vm_name in ALL_METRICS.items():
         try:
             r = requests.get(VM_RANGE_URL, params={
@@ -188,10 +183,15 @@ def download_csv(start: int, end: int):
                     data.setdefault(ts, {})[col] = val
         except Exception:
             pass
+    return cols, data, timestamps
+
+
+@app.get("/api/download")
+def download_csv(start: int, end: int):
+    cols, data, timestamps = _fetch_all_metrics(start, end, _range_step(start, end))
 
     buf = StringIO()
     writer = csv.writer(buf)
-    cols = list(ALL_METRICS.keys())
     writer.writerow(["timestamp_utc"] + cols)
     for ts in sorted(timestamps):
         dt = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
@@ -262,16 +262,12 @@ class RelayConfig(BaseModel):
     enabled: bool
 
 def _read_relay() -> dict:
-    try:
-        data = json.loads(RELAY_STATE_FILE.read_text())
-        data.setdefault("on_duration_seconds", 5.0)
-        data.setdefault("off_duration_seconds", 10.0)
-        return data
-    except Exception:
-        return {"on_duration_seconds": 5.0, "off_duration_seconds": 10.0, "enabled": False}
+    return shared_state.read_json(shared_state.RELAY_STATE_FILE, {
+        "on_duration_seconds": 5.0, "off_duration_seconds": 10.0, "enabled": False,
+    })
 
 def _write_relay(data: dict) -> None:
-    RELAY_STATE_FILE.write_text(json.dumps(data))
+    shared_state.write_json(shared_state.RELAY_STATE_FILE, data)
 
 @app.get("/relay/config")
 def get_relay_config():
@@ -309,36 +305,13 @@ def set_dose(body: DoseRequest):
 
 @app.get("/api/table")
 def get_table(start: int, end: int):
-    duration = end - start
-    if duration <= 3600:
-        step = "10s"
-    elif duration <= 86400:
-        step = "5m"
-    else:
-        step = "30m"
+    cols, data, timestamps = _fetch_all_metrics(start, end, _range_step(start, end))
 
-    data: dict[int, dict] = {}
-    timestamps: set[int] = set()
-
-    for col, vm_name in ALL_METRICS.items():
-        try:
-            r = requests.get(VM_RANGE_URL, params={
-                "query": vm_name, "start": start, "end": end, "step": step,
-            }, timeout=15)
-            j = r.json()
-            if j.get("data") and j["data"]["result"]:
-                for ts, val in j["data"]["result"][0]["values"]:
-                    ts = int(float(ts))
-                    timestamps.add(ts)
-                    data.setdefault(ts, {})[col] = round(float(val), 4)
-        except Exception:
-            pass
-
-    cols = list(ALL_METRICS.keys())
     rows = []
     for ts in sorted(timestamps, reverse=True):   # newest first
         dt = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-        rows.append([dt] + [data.get(ts, {}).get(c) for c in cols])
+        row_data = data.get(ts, {})
+        rows.append([dt] + [round(float(row_data[c]), 4) if c in row_data else None for c in cols])
 
     return {"columns": ["timestamp_utc"] + cols, "rows": rows, "total": len(rows)}
 
@@ -355,8 +328,3 @@ def debug_vm():
 @app.get("/status")
 def status():
     return {"system": "running"}
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)

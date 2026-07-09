@@ -1,9 +1,12 @@
 import json
+import logging
 import time
 
 import zenoh
 
 from ..database.victoria_logger import VictoriaMetricsLogger
+
+_log = logging.getLogger(__name__)
 
 # Zenoh key (same as MQTT topic)
 ZENOH_KEY = "reno/water/treatment/010"
@@ -19,28 +22,21 @@ def listener(sample):
         payload = bytes(sample.payload).decode("utf-8")
         data = json.loads(payload)
 
-        print("\n--- Sensor Data Received ---")
-        for key, value in data.items():
-            print(f"  {key:<15}: {value}")
-
+        _log.info("Sensor data received: %s", data)
         influx.log_treatment(data)
-        print("✓ Logged to VictoriaMetrics")
 
-    except Exception as e:
-        import traceback
-
-        print(f"Error: {e}")
-        traceback.print_exc()
+    except Exception:
+        _log.exception("Failed to process sensor data")
 
 
 def start_receiver():
-    print("Connecting to Zenoh...")
+    _log.info("Connecting to Zenoh...")
     conf = zenoh.Config()
     conf.insert_json5("connect/endpoints", f'["{ZENOH_ROUTER}"]')
     z = zenoh.open(conf)
-    print(f"Subscribed to {ZENOH_KEY}")
+    _log.info("Subscribed to %s", ZENOH_KEY)
     sub = z.declare_subscriber(ZENOH_KEY, listener)
-    print("Listening for water treatment data...")
+    _log.info("Listening for water treatment data...")
     try:
         while True:
             time.sleep(1)

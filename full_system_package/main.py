@@ -2,7 +2,6 @@ import json
 import logging
 import time
 import threading
-from pathlib import Path
 
 import RPi.GPIO as GPIO
 from pymodbus.client import ModbusSerialClient
@@ -19,31 +18,22 @@ from .utils import config
 
 _log = logging.getLogger(__name__)
 
-DOSE_STATE_FILE  = Path(__file__).resolve().parents[1] / "dose_state.json"
-RELAY_STATE_FILE = Path(__file__).resolve().parents[1] / "relay_state.json"
-STOCK_MG_PER_ML  = 50.0
+STOCK_MG_PER_ML = 50.0
 
 _alum_session = None
 _alum_pub     = None
 
 
 def _get_dose_ratio() -> float:
-    try:
-        return json.loads(DOSE_STATE_FILE.read_text())["dose_mg_per_l"] / STOCK_MG_PER_ML
-    except Exception:
-        return 0.2
+    data = shared_state.read_json(shared_state.DOSE_STATE_FILE, {"dose_mg_per_l": 10.0})
+    return data["dose_mg_per_l"] / STOCK_MG_PER_ML
 
 
 def _get_relay_config() -> tuple:
-    try:
-        data = json.loads(RELAY_STATE_FILE.read_text())
-        return (
-            bool(data.get("enabled", False)),
-            float(data.get("on_duration_seconds", 60.0)),
-            float(data.get("off_duration_seconds", 300.0)),
-        )
-    except Exception:
-        return False, 60.0, 300.0
+    data = shared_state.read_json(shared_state.RELAY_STATE_FILE, {
+        "enabled": False, "on_duration_seconds": 60.0, "off_duration_seconds": 300.0,
+    })
+    return bool(data["enabled"]), float(data["on_duration_seconds"]), float(data["off_duration_seconds"])
 
 
 def _relay_timer_thread() -> None:
