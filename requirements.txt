@@ -1,5 +1,5 @@
 RPi.GPIO
-zenoh
+eclipse-zenoh
 pymodbus
 fastapi
 uvicorn[standard]
