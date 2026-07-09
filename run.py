@@ -1,4 +1,5 @@
 import logging
+import os
 import subprocess
 import threading
 import time
@@ -13,8 +14,9 @@ logging.basicConfig(
 )
 _log = logging.getLogger(__name__)
 
-VICTORIA_METRICS_BIN  = "/home/suprabha/victoria-metrics-prod"
-VICTORIA_METRICS_DATA = "/home/suprabha/victoria-metrics-data"
+_HOME = os.path.expanduser("~")
+VICTORIA_METRICS_BIN  = os.path.join(_HOME, "victoria-metrics-prod")
+VICTORIA_METRICS_DATA = os.path.join(_HOME, "victoria-metrics-data")
 ZENOHD_BIN            = "/usr/local/bin/zenohd"
 
 _procs = []
