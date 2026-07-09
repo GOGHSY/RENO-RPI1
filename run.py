@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import subprocess
 import threading
 import time
@@ -75,8 +76,8 @@ def _resolve_public_url() -> str | None:
                 ["tailscale", "funnel", "status"],
                 capture_output=True, text=True, timeout=5,
             )
-            line = next((l for l in st.stdout.splitlines() if "https://" in l), None)
-            return line.strip().split()[0] if line else None
+            m = re.search(r"https://\S+\.ts\.net\S*", st.stdout)
+            return m.group(0) if m else None
         _log.warning("Tailscale Funnel: %s", r.stderr.strip()[:120])
     except FileNotFoundError:
         pass
