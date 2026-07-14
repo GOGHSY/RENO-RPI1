@@ -12,7 +12,7 @@ _log = logging.getLogger(__name__)
 ZENOH_KEY = "reno/water/treatment/010"
 
 # Connect to your router (Pi1)
-ZENOH_ROUTER = "tcp/100.96.169.94:7447"  # <-- your IP from zenohd
+ZENOH_ROUTER = "tcp/100.114.164.70:7447"  # <-- your IP from zenohd
 
 influx = VictoriaMetricsLogger()
 
