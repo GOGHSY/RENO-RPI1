@@ -3,7 +3,8 @@ import csv
 import os
 import secrets
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from io import StringIO
 from pathlib import Path
 
@@ -20,6 +21,8 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 VM_URL       = "http://localhost:8428/api/v1/query"
 VM_RANGE_URL = "http://localhost:8428/api/v1/query_range"
+
+LOCAL_TZ = ZoneInfo("America/Los_Angeles")  # Reno, NV (Pacific Time)
 
 STOCK_MG_PER_ML = 50.0  # 50,000 mg/L stock = 50 mg/mL
 
@@ -192,9 +195,9 @@ def download_csv(start: int, end: int):
 
     buf = StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["timestamp_utc"] + cols)
+    writer.writerow(["timestamp_local"] + cols)
     for ts in sorted(timestamps):
-        dt = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        dt = datetime.fromtimestamp(ts, tz=LOCAL_TZ).strftime("%Y-%m-%d %H:%M:%S")
         writer.writerow([dt] + [data.get(ts, {}).get(c, "") for c in cols])
 
     buf.seek(0)
@@ -309,11 +312,11 @@ def get_table(start: int, end: int):
 
     rows = []
     for ts in sorted(timestamps, reverse=True):   # newest first
-        dt = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        dt = datetime.fromtimestamp(ts, tz=LOCAL_TZ).strftime("%Y-%m-%d %H:%M:%S")
         row_data = data.get(ts, {})
         rows.append([dt] + [round(float(row_data[c]), 4) if c in row_data else None for c in cols])
 
-    return {"columns": ["timestamp_utc"] + cols, "rows": rows, "total": len(rows)}
+    return {"columns": ["timestamp_local"] + cols, "rows": rows, "total": len(rows)}
 
 
 @app.get("/api/debug/vm")
