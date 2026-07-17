@@ -11,8 +11,9 @@ _log = logging.getLogger(__name__)
 # Zenoh key (same as MQTT topic)
 ZENOH_KEY = "reno/water/treatment/010"
 
-# Connect to your router (Pi1)
-ZENOH_ROUTER = "tcp/100.114.164.70:7447"  # <-- your IP from zenohd
+# zenohd runs locally on this Pi — connect via loopback so this doesn't
+# depend on Tailscale being up (RPi2's connection still needs Tailscale).
+ZENOH_ROUTER = "tcp/127.0.0.1:7447"
 
 influx = VictoriaMetricsLogger()
 
