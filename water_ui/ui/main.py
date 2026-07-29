@@ -23,6 +23,8 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 VM_URL       = "http://localhost:8428/api/v1/query"
 VM_RANGE_URL = "http://localhost:8428/api/v1/query_range"
 VM_EXPORT_URL = "http://localhost:8428/api/v1/export"
+VM_DELETE_URL = "http://localhost:8428/api/v1/admin/tsdb/delete_series"
+VM_FORCE_MERGE_URL = "http://localhost:8428/internal/force_merge"
 
 LOCAL_TZ = ZoneInfo("America/Los_Angeles")  # Reno, NV (Pacific Time)
 
@@ -231,6 +233,24 @@ def download_csv(start: int, end: int):
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=wtp_data.csv"},
     )
+
+
+@app.post("/api/delete")
+def delete_data(start: int, end: int):
+    """Delete stored samples for every metric over the given range, to free disk space
+    on the Pi after they've been downloaded."""
+    for vm_name in ALL_METRICS.values():
+        try:
+            requests.post(VM_DELETE_URL, params={
+                "match[]": vm_name, "start": start, "end": end,
+            }, timeout=15)
+        except Exception:
+            pass
+    try:
+        requests.get(VM_FORCE_MERGE_URL, timeout=30)
+    except Exception:
+        pass
+    return {"ok": True}
 
 
 # ── Controls ───────────────────────────────────────────────────────────────

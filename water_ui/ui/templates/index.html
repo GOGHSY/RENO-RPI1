@@ -218,6 +218,7 @@
     <input class="dt-input" type="datetime-local" id="dt-to" />
     <button class="btn-apply" onclick="applyCustom()">Apply</button>
     <button class="btn-dl" onclick="downloadCSV()">↓ Download CSV</button>
+    <button class="btn-dl" onclick="deleteData()">🗑 Delete Data</button>
   </div>
 
 
@@ -551,6 +552,12 @@ function applyCustom() {
 function downloadCSV() {
   if (!histStart||!histEnd) { alert("Select a time range first."); return; }
   window.location.href = `/api/download?start=${histStart}&end=${histEnd}`;
+}
+async function deleteData() {
+  if (!histStart||!histEnd) { alert("Select a time range first."); return; }
+  if (!confirm("Delete stored data for the selected time range? This cannot be undone. Make sure you've downloaded it first.")) return;
+  const r = await fetch(`/api/delete?start=${histStart}&end=${histEnd}`, {method:"POST"});
+  alert(r.ok ? "Data deleted." : "Delete failed.");
 }
 
 // ── History charts ────────────────────────────────────────────────────────
