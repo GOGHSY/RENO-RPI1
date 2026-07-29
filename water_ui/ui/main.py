@@ -1,5 +1,6 @@
 import base64
 import csv
+import json
 import os
 import secrets
 from contextlib import asynccontextmanager
@@ -21,6 +22,7 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 VM_URL       = "http://localhost:8428/api/v1/query"
 VM_RANGE_URL = "http://localhost:8428/api/v1/query_range"
+VM_EXPORT_URL = "http://localhost:8428/api/v1/export"
 
 LOCAL_TZ = ZoneInfo("America/Los_Angeles")  # Reno, NV (Pacific Time)
 
@@ -164,7 +166,7 @@ def _range_step(start: int, end: int) -> str:
     if duration <= 3600:
         return "10s"
     elif duration <= 86400:
-        return "5m"
+        return "5s"
     return "30m"
 
 
@@ -189,9 +191,32 @@ def _fetch_all_metrics(start: int, end: int, step: str) -> tuple[list[str], dict
     return cols, data, timestamps
 
 
+def _fetch_all_metrics_raw(start: int, end: int) -> tuple[list[str], dict[int, dict], set[int]]:
+    """Fetch every raw (unaggregated) sample VictoriaMetrics actually stored, keyed by timestamp."""
+    cols = list(ALL_METRICS.keys())
+    data: dict[int, dict] = {}
+    timestamps: set[int] = set()
+    for col, vm_name in ALL_METRICS.items():
+        try:
+            r = requests.get(VM_EXPORT_URL, params={
+                "match[]": vm_name, "start": start, "end": end,
+            }, timeout=30)
+            for line in r.text.splitlines():
+                if not line.strip():
+                    continue
+                obj = json.loads(line)
+                for ts_ms, val in zip(obj["timestamps"], obj["values"]):
+                    ts = ts_ms // 1000
+                    timestamps.add(ts)
+                    data.setdefault(ts, {})[col] = val
+        except Exception:
+            pass
+    return cols, data, timestamps
+
+
 @app.get("/api/download")
 def download_csv(start: int, end: int):
-    cols, data, timestamps = _fetch_all_metrics(start, end, _range_step(start, end))
+    cols, data, timestamps = _fetch_all_metrics_raw(start, end)
 
     buf = StringIO()
     writer = csv.writer(buf)
