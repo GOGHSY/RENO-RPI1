@@ -28,13 +28,13 @@ VM_FORCE_MERGE_URL = "http://localhost:8428/internal/force_merge"
 
 LOCAL_TZ = ZoneInfo("America/Los_Angeles")  # Reno, NV (Pacific Time)
 
-STOCK_MG_PER_ML = 50.0  # 50,000 mg/L stock = 50 mg/mL
+_DOSE_STATE_DEFAULTS = {"dose_mg_per_l": 10.0, "stock_mg_per_l": 50000.0}  # reservoir concentration, e.g. 50,000 mg/L
 
-def _read_dose() -> float:
-    return shared_state.read_json(shared_state.DOSE_STATE_FILE, {"dose_mg_per_l": 10.0})["dose_mg_per_l"]
+def _read_dose_state() -> dict:
+    return shared_state.read_json(shared_state.DOSE_STATE_FILE, _DOSE_STATE_DEFAULTS)
 
-def _write_dose(dose: float) -> None:
-    shared_state.write_json(shared_state.DOSE_STATE_FILE, {"dose_mg_per_l": dose})
+def _write_dose_state(data: dict) -> None:
+    shared_state.write_json(shared_state.DOSE_STATE_FILE, data)
 
 ZENOH_KEY = "water/control"
 
@@ -217,8 +217,11 @@ def _fetch_all_metrics_raw(start: int, end: int) -> tuple[list[str], dict[int, d
 
 
 @app.get("/api/download")
-def download_csv(start: int, end: int):
-    cols, data, timestamps = _fetch_all_metrics_raw(start, end)
+def download_csv(start: int, end: int, step: str | None = None):
+    if step:
+        cols, data, timestamps = _fetch_all_metrics(start, end, step)
+    else:
+        cols, data, timestamps = _fetch_all_metrics_raw(start, end)
 
     buf = StringIO()
     writer = csv.writer(buf)
@@ -301,6 +304,9 @@ async def set_threshold(request: Request):
 class DoseRequest(BaseModel):
     dose_mg_per_l: float
 
+class StockRequest(BaseModel):
+    stock_mg_per_l: float
+
 
 # ── Relay interval ─────────────────────────────────────────────────────────
 
@@ -338,22 +344,36 @@ def set_relay_config(body: RelayConfig):
 
 @app.get("/alum/dose")
 def get_dose():
-    dose = _read_dose()
-    return {"dose_mg_per_l": dose, "ratio_ml_per_l": round(dose / STOCK_MG_PER_ML, 4)}
+    state = _read_dose_state()
+    ratio = state["dose_mg_per_l"] * 1000 / state["stock_mg_per_l"]
+    return {"dose_mg_per_l": state["dose_mg_per_l"], "stock_mg_per_l": state["stock_mg_per_l"], "ratio_ml_per_l": round(ratio, 4)}
 
 @app.post("/alum/dose")
 def set_dose(body: DoseRequest):
     if body.dose_mg_per_l <= 0:
         raise HTTPException(status_code=400, detail="Dose must be positive")
-    _write_dose(body.dose_mg_per_l)
-    return {"dose_mg_per_l": body.dose_mg_per_l, "ratio_ml_per_l": round(body.dose_mg_per_l / STOCK_MG_PER_ML, 4)}
+    state = _read_dose_state()
+    state["dose_mg_per_l"] = body.dose_mg_per_l
+    _write_dose_state(state)
+    ratio = state["dose_mg_per_l"] * 1000 / state["stock_mg_per_l"]
+    return {"dose_mg_per_l": state["dose_mg_per_l"], "stock_mg_per_l": state["stock_mg_per_l"], "ratio_ml_per_l": round(ratio, 4)}
+
+@app.post("/alum/stock")
+def set_stock(body: StockRequest):
+    if body.stock_mg_per_l <= 0:
+        raise HTTPException(status_code=400, detail="Reservoir concentration must be positive")
+    state = _read_dose_state()
+    state["stock_mg_per_l"] = body.stock_mg_per_l
+    _write_dose_state(state)
+    ratio = state["dose_mg_per_l"] * 1000 / state["stock_mg_per_l"]
+    return {"dose_mg_per_l": state["dose_mg_per_l"], "stock_mg_per_l": state["stock_mg_per_l"], "ratio_ml_per_l": round(ratio, 4)}
 
 
 # ── Debug ──────────────────────────────────────────────────────────────────
 
 @app.get("/api/table")
-def get_table(start: int, end: int):
-    cols, data, timestamps = _fetch_all_metrics(start, end, _range_step(start, end))
+def get_table(start: int, end: int, step: str | None = None):
+    cols, data, timestamps = _fetch_all_metrics(start, end, step or _range_step(start, end))
 
     rows = []
     for ts in sorted(timestamps, reverse=True):   # newest first

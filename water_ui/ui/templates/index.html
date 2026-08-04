@@ -217,6 +217,9 @@
     <span class="dt-label">To</span>
     <input class="dt-input" type="datetime-local" id="dt-to" />
     <button class="btn-apply" onclick="applyCustom()">Apply</button>
+    <div class="ctrl-sep"></div>
+    <span class="dt-label">Interval (s)</span>
+    <input class="dt-input" type="number" id="step-input" min="1" step="1" placeholder="auto" style="width:70px"/>
     <button class="btn-dl" onclick="downloadCSV()">↓ Download CSV</button>
     <button class="btn-dl" onclick="deleteData()">🗑 Delete Data</button>
   </div>
@@ -349,6 +352,11 @@
             style="width:80px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:.9rem"/>
         </div>
         <div>
+          <div class="card-title" style="margin-bottom:.4rem">Reservoir Concentration (mg/L)</div>
+          <input type="number" id="alum-stock-input" value="50000" step="1000" min="1"
+            style="width:100px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:.9rem"/>
+        </div>
+        <div>
           <div class="card-title" style="margin-bottom:.4rem">Pump Rate</div>
           <span style="font-size:1rem;font-weight:700" id="alum-ratio">—</span>
           <span style="font-size:.75rem;color:var(--muted)"> mL/L</span>
@@ -397,9 +405,9 @@
       <div class="tbl-header">
         <div class="tbl-info" id="tbl-info">—</div>
         <div class="tbl-pagination">
-          <button class="rbtn" id="tbl-prev" onclick="tblPage(-1)">← Prev</button>
+          <button class="rbtn" id="tbl-prev" onclick="tblPage_(-1)">← Prev</button>
           <span class="tbl-page-label" id="tbl-page-lbl">—</span>
-          <button class="rbtn" id="tbl-next" onclick="tblPage(1)">Next →</button>
+          <button class="rbtn" id="tbl-next" onclick="tblPage_(1)">Next →</button>
         </div>
       </div>
       <div class="tbl-scroll">
@@ -551,7 +559,9 @@ function applyCustom() {
 }
 function downloadCSV() {
   if (!histStart||!histEnd) { alert("Select a time range first."); return; }
-  window.location.href = `/api/download?start=${histStart}&end=${histEnd}`;
+  const step = parseInt($("step-input").value);
+  const stepParam = step > 0 ? `&step=${step}s` : "";
+  window.location.href = `/api/download?start=${histStart}&end=${histEnd}${stepParam}`;
 }
 async function deleteData() {
   if (!histStart||!histEnd) { alert("Select a time range first."); return; }
@@ -653,7 +663,9 @@ async function loadTable() {
   $("tbl-body").innerHTML = "";
   $("tbl-head").innerHTML = "";
   try {
-    const r = await fetch(`/api/table?start=${histStart}&end=${histEnd}`);
+    const step = parseInt($("step-input").value);
+    const stepParam = step > 0 ? `&step=${step}s` : "";
+    const r = await fetch(`/api/table?start=${histStart}&end=${histEnd}${stepParam}`);
     tblData = await r.json();
     tblPage = 0;
     renderTable();
@@ -726,6 +738,10 @@ async function applyThreshold() {
   }
 }
 
+$("step-input").addEventListener("change", () => {
+  if ($("history-view").style.display==="none") loadTable();
+});
+
 // ── Init ──────────────────────────────────────────────────────────────────
 window.addEventListener("DOMContentLoaded", () => {
   const now=new Date(), hr=new Date(now-3600_000);
@@ -737,26 +753,29 @@ window.addEventListener("DOMContentLoaded", () => {
 });
 </script>
 
-<!-- fix onclick for renamed tblPage_ -->
-<script>
-function tblPage(delta) { tblPage_(delta); }
-</script>
-
 <script>
 async function loadDose() {
   try {
     const res = await fetch('/alum/dose');
     const data = await res.json();
     document.getElementById('alum-dose-input').value = data.dose_mg_per_l;
+    document.getElementById('alum-stock-input').value = data.stock_mg_per_l;
     document.getElementById('alum-ratio').innerText = data.ratio_ml_per_l;
   } catch(e) {}
 }
 
 async function saveDose() {
   const dose = parseFloat(document.getElementById('alum-dose-input').value);
+  const stock = parseFloat(document.getElementById('alum-stock-input').value);
   const status = document.getElementById('alum-status');
   if (isNaN(dose) || dose <= 0) { status.innerText = 'Enter a valid dose.'; return; }
+  if (isNaN(stock) || stock <= 0) { status.innerText = 'Enter a valid reservoir concentration.'; return; }
   try {
+    await fetch('/alum/stock', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({stock_mg_per_l: stock})
+    });
     const res = await fetch('/alum/dose', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -769,11 +788,14 @@ async function saveDose() {
   } catch(e) { status.innerText = 'Error saving.'; }
 }
 
-document.getElementById('alum-dose-input').addEventListener('input', function() {
-  const dose = parseFloat(this.value);
-  if (!isNaN(dose) && dose > 0)
-    document.getElementById('alum-ratio').innerText = (dose / 50.0).toFixed(4);
-});
+function updateRatioPreview() {
+  const dose = parseFloat(document.getElementById('alum-dose-input').value);
+  const stock = parseFloat(document.getElementById('alum-stock-input').value);
+  if (!isNaN(dose) && dose > 0 && !isNaN(stock) && stock > 0)
+    document.getElementById('alum-ratio').innerText = (dose * 1000 / stock).toFixed(4);
+}
+document.getElementById('alum-dose-input').addEventListener('input', updateRatioPreview);
+document.getElementById('alum-stock-input').addEventListener('input', updateRatioPreview);
 
 loadDose();
 </script>

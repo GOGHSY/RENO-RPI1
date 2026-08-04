@@ -18,15 +18,13 @@ from .utils import config
 
 _log = logging.getLogger(__name__)
 
-STOCK_MG_PER_ML = 50.0
-
 _alum_session = None
 _alum_pub     = None
 
 
 def _get_dose_ratio() -> float:
-    data = shared_state.read_json(shared_state.DOSE_STATE_FILE, {"dose_mg_per_l": 10.0})
-    return data["dose_mg_per_l"] / STOCK_MG_PER_ML
+    data = shared_state.read_json(shared_state.DOSE_STATE_FILE, {"dose_mg_per_l": 10.0, "stock_mg_per_l": 50000.0})
+    return data["dose_mg_per_l"] * 1000 / data["stock_mg_per_l"]
 
 
 def _get_relay_config() -> tuple:
