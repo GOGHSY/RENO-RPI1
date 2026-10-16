@@ -23,15 +23,16 @@ def _get_dose_ratio() -> float:
     except Exception:
         return 0.2  # default 10 mg/L
 
+_alum_session = None  # must stay referenced: zenoh 1.x closes a session when it's garbage-collected
 _alum_pub = None
 
 def _get_alum_publisher():
-    global _alum_pub
+    global _alum_session, _alum_pub
     if _alum_pub is not None:
         return _alum_pub
     try:
-        session = zenoh.open(zenoh.Config())
-        _alum_pub = session.declare_publisher("reno/water/alum/pump")
+        _alum_session = zenoh.open(zenoh.Config())
+        _alum_pub = _alum_session.declare_publisher("reno/water/alum/pump")
     except Exception as e:
         print(f"Warning: could not create alum Zenoh publisher: {e}")
     return _alum_pub
@@ -97,7 +98,10 @@ def start():
             ml_per_min = round(flow * _get_dose_ratio(), 2)
             pub = _get_alum_publisher()
             if pub:
-                pub.put(json.dumps({"ml_per_min": ml_per_min}))
+                try:
+                    pub.put(json.dumps({"ml_per_min": ml_per_min}))
+                except Exception as e:  # never let a publish failure stop valve control
+                    print(f"Warning: alum publish failed: {e}")
 
             logger.log(flow, valve_main.is_active, valve_aux.is_active, turbidity, status)
             print(f"flow:{flow} | V1: {valve_main.is_active} | V2: {valve_aux.is_active} | turbidity:{turbidity}")
