@@ -1,23 +1,22 @@
 import json
-import sys
+import threading
 
 import zenoh
 
-sys.path.append("/home/suprabha/full_system")
 from full_system_package.database.victoria_logger import VictoriaMetricsLogger
 
 # Zenoh key (same as MQTT topic)
 ZENOH_KEY = "reno/water/treatment/010"
 
 # Connect to your router (Pi1)
-ZENOH_ROUTER = "tcp/100.96.169.94:7447"  # <-- your IP from zenohd
+ZENOH_ROUTER = "tcp/127.0.0.1:7447"  # zenohd runs on this Pi
 
 influx = VictoriaMetricsLogger()
 
 
 def listener(sample):
     try:
-        payload = sample.payload.decode()
+        payload = sample.payload.to_string()  # zenoh 1.x ZBytes
         data = json.loads(payload)
 
         print("\n--- Sensor Data Received ---")
@@ -42,6 +41,4 @@ def start_receiver():
     print(f"Subscribed to {ZENOH_KEY}")
     sub = z.declare_subscriber(ZENOH_KEY, listener)
     print("Listening for water treatment data...")
-    input("Press Enter to exit...\n")
-    sub.undeclare()
-    z.close()
+    threading.Event().wait()  # block forever; input() dies with EOFError under systemd

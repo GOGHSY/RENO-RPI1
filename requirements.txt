@@ -1,3 +1,9 @@
-RPi.GPIO
-influxdb-client
+rpi-lgpio  # drop-in for RPi.GPIO; works on Pi 5 / Bookworm (RPi.GPIO doesn't)
+pymodbus[serial]>=3.10  # device_id= kwarg; [serial] pulls pyserial
+eclipse-zenoh
+requests
+paho-mqtt
+fastapi
+uvicorn
+jinja2
 python-dotenv

@@ -17,7 +17,7 @@ BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 # Alum dose state file — shared with the main sensor loop
-DOSE_STATE_FILE = Path(__file__).resolve().parents[3] / "dose_state.json"
+DOSE_STATE_FILE = Path(__file__).resolve().parents[2] / "dose_state.json"
 STOCK_CONCENTRATION_MG_PER_ML = 50.0  # 50,000 mg/L = 50 mg/mL
 
 def _read_dose() -> float:
