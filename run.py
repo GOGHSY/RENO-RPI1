@@ -96,6 +96,7 @@ if __name__ == "__main__":
                 VICTORIA_METRICS_BIN,
                 "-httpListenAddr=:8428",
                 f"-storageDataPath={VICTORIA_METRICS_DATA}",
+                "-retentionPeriod=3",  # months; VM drops older data automatically
             ])
 
         if port_open(7447):
