@@ -5,9 +5,14 @@ import requests
 from ..utils import config
 
 
+def _tag(value) -> str:
+    """Escape a line-protocol tag value (spaces, commas, = break the line)."""
+    return str(value).replace(" ", "\\ ").replace(",", "\\,").replace("=", "\\=")
+
+
 class VictoriaMetricsLogger:
     def __init__(self):
-        self.url = f"{config.VM_URL}/api/v1/import"
+        self.url = f"{config.VM_URL}/influx/write?precision=ms"  # line protocol; /api/v1/import is JSON-only and silently drops these
 
     def _send(self, line: str):
         for _ in range(3):  # retry 3 times
@@ -26,10 +31,10 @@ class VictoriaMetricsLogger:
 
         line = (
             f"filtration,"
-            f"status={status} "
+            f"status={_tag(status)} "
             f"flow_rate={float(flow)},"
-            f"valve_1_active={1 if v1_state == 'OPEN' else 0},"
-            f"valve_2_active={1 if v2_state == 'OPEN' else 0},"
+            f"valve_1_active={int(bool(v1_state))},"
+            f"valve_2_active={int(bool(v2_state))},"
             f"turbidity={float(turbidity)} "
         )
 
@@ -50,7 +55,7 @@ class VictoriaMetricsLogger:
 
         # handle tags separately
         if "pump1_state" in data:
-            tags.append(f"pump1_state={data['pump1_state']}")
+            tags.append(f"pump1_state={_tag(data['pump1_state'])}")
 
         # build fields
         for key, value in data.items():

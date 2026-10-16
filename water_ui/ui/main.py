@@ -58,11 +58,11 @@ async def dashboard(request: Request):
 def get_vm_metric(metric_key: str):
     """Bridge for the frontend to fetch VictoriaMetrics data"""
     metrics_map = {
-        "flow": "intake_flow_rate",
-        "flocPh": "floc_ph_level",
+        "flow": "filtration_flow_rate",
+        "flocPh": "water_treatment_pH2",  # RPI2 pH2 = Post Floc
         "ntu": "filtration_turbidity",
-        "effPh": "effluent_ph_level",
-        "ec": "effluent_conductivity",
+        "effPh": "water_treatment_pH3",   # RPI2 pH3 = Post Sed, last pH probe
+        "ec": "water_treatment_EC",
     }
 
     query = metrics_map.get(metric_key)
